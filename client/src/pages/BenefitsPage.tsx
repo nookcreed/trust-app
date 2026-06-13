@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
-  CardHeader,
   CardTitle,
   Button,
   Badge,
@@ -10,7 +9,7 @@ import {
   Avatar,
   Textarea,
 } from '@databricks/appkit-ui/react';
-import { Send, User, Bot, TrendingUp, Users } from 'lucide-react';
+import { Send, User, Bot, TrendingUp, Users, ShieldCheck } from 'lucide-react';
 
 // TypeScript types mirroring server contract
 interface Profile {
@@ -160,37 +159,53 @@ export function BenefitsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <header className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">BenefitsIQ</h1>
-        <p className="text-muted-foreground">
-          Understand what benefits you may be eligible for — calm, clear, and free.
+      {/* Hero */}
+      <header className="text-center space-y-3 pt-2 reveal" style={{ animationDelay: '40ms' }}>
+        <p className="text-[11px] uppercase tracking-[0.18em] text-primary/70 font-medium">
+          AI for Good · built on Databricks
+        </p>
+        <h1 className="font-display text-4xl sm:text-5xl font-semibold text-foreground leading-[1.05] text-balance">
+          The benefits your family<br className="hidden sm:block" /> has already earned.
+        </h1>
+        <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">
+          Tell us your situation in plain words. We check it against real federal rules —
+          no guessing — and hand you a clear Statement of Benefits.
         </p>
         {stats && (
-          <p className="text-sm text-muted-foreground">
-            {stats.families_helped.toLocaleString()} families helped ·{' '}
-            ${(stats.total_value / 1000000).toFixed(1)}M in total value identified
+          <p className="text-sm text-muted-foreground pt-1">
+            <span className="font-semibold text-foreground">{stats.families_helped.toLocaleString()}</span>{' '}
+            families helped ·{' '}
+            <span className="font-semibold text-foreground">${(stats.total_value / 1000000).toFixed(1)}M</span>{' '}
+            in value identified
           </p>
         )}
       </header>
 
       {/* Landing framing — the problem, quantified (shown before the conversation starts) */}
       {messages.length === 0 && (
-        <div className="space-y-5">
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="p-5 text-center space-y-1">
-              <p className="text-4xl font-bold text-primary">$60B+</p>
-              <p className="text-sm text-foreground font-medium">
-                in U.S. government benefits goes unclaimed every year
-              </p>
-              <p className="text-xs text-muted-foreground">
-                1 in 5 eligible families never enrolls — not because they don&apos;t qualify, but
-                because no one tells them what they&apos;ve earned. BenefitsIQ does, in plain language.
-              </p>
+        <div className="space-y-6">
+          <Card className="card-civic border-primary/15 overflow-hidden reveal" style={{ animationDelay: '120ms' }}>
+            <CardContent className="p-6 sm:p-7 flex items-center gap-5 sm:gap-6">
+              <div className="shrink-0 text-center">
+                <p className="stmt-total text-5xl text-primary leading-none">$60B</p>
+                <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mt-1.5">
+                  every year
+                </p>
+              </div>
+              <div className="self-stretch w-px bg-border shrink-0" />
+              <div className="space-y-1.5">
+                <p className="text-sm font-semibold text-foreground">
+                  in U.S. government benefits goes unclaimed.
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  1 in 5 eligible families never enrolls — not because they don&apos;t qualify, but
+                  because no one tells them what they&apos;ve earned. BenefitsIQ does, in plain language.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
-          <div className="text-center space-y-2">
+          <div className="text-center space-y-3 reveal" style={{ animationDelay: '200ms' }}>
             <p className="text-sm text-muted-foreground">
               Tell me your situation, or try one of these:
             </p>
@@ -201,7 +216,7 @@ export function BenefitsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => handleQuickStart(scenario)}
-                  className="text-xs"
+                  className="text-xs rounded-full"
                 >
                   {scenario}
                 </Button>
@@ -213,7 +228,7 @@ export function BenefitsPage() {
 
       {/* Chat messages */}
       {messages.length > 0 && (
-        <Card className="shadow-md">
+        <Card className="card-civic">
           <CardContent className="p-4 space-y-4 max-h-96 overflow-y-auto">
             {messages.map((msg) => (
               <div
@@ -264,7 +279,7 @@ export function BenefitsPage() {
       {statement && <StatementCard statement={statement} />}
 
       {/* Input area */}
-      <Card className="shadow-md">
+      <Card className="card-civic">
         <CardContent className="p-4">
           <div className="flex gap-2">
             <Textarea
@@ -317,29 +332,40 @@ function StatementCard({ statement }: { statement: Statement }) {
   }, [statement.total]);
 
   return (
-    <Card className="shadow-lg border-primary/20">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Statement of Benefits
-          </CardTitle>
-          <Badge variant="secondary">
-            Likely eligible · {statement.programs.length}
-          </Badge>
+    <Card className="card-civic border-primary/25 overflow-hidden reveal">
+      {/* Certificate header band */}
+      <div className="bg-primary/[0.06] border-b border-primary/15 px-6 py-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="seal h-9 w-9 shrink-0">
+            <ShieldCheck className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-primary/70 font-medium">
+              Estimated · informational
+            </p>
+            <CardTitle className="font-display text-lg leading-tight">
+              Statement of Benefits
+            </CardTitle>
+          </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
+        <Badge variant="secondary" className="shrink-0">
+          {statement.programs.length} likely
+        </Badge>
+      </div>
+
+      <CardContent className="space-y-6 pt-6">
         {/* Big total */}
-        <div className="text-center py-4">
-          <p className="text-sm text-muted-foreground mb-1">Estimated annual total</p>
-          <p className="text-5xl font-bold text-primary">
+        <div className="text-center py-2">
+          <p className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground mb-2">
+            Estimated annual total
+          </p>
+          <p className="stmt-total text-6xl text-primary">
             ${animatedTotal.toLocaleString()}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">per year</p>
+          <p className="text-xs text-muted-foreground mt-2">per year, across the programs below</p>
         </div>
 
-        <Separator />
+        <div className="rule-dotted" />
 
         {/* Program list */}
         <div className="space-y-4">
@@ -364,7 +390,7 @@ function StatementCard({ statement }: { statement: Statement }) {
                 )}
               </div>
               <div className="text-right shrink-0">
-                <p className="font-semibold">
+                <p className="stmt-total text-base text-foreground">
                   {prog.amount !== null ? `$${prog.amount.toLocaleString()}` : 'varies'}
                 </p>
                 <p className="text-xs text-muted-foreground">/year</p>

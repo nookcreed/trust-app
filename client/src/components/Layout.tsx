@@ -10,11 +10,16 @@ const NAV = [
 
 export function Layout() {
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b border-border bg-card/60 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 flex items-center gap-1 sm:gap-2 h-14">
-          <NavLink to="/" className="font-bold text-primary mr-2 sm:mr-4 shrink-0">
-            BenefitsIQ
+    <div className="min-h-screen">
+      <nav className="border-b border-border bg-card/70 backdrop-blur-md sticky top-0 z-10">
+        <div className="max-w-5xl mx-auto px-4 flex items-center gap-1 sm:gap-2 h-16">
+          <NavLink to="/" className="flex items-center gap-2 mr-2 sm:mr-5 shrink-0 group">
+            <span className="seal h-8 w-8 transition-transform group-hover:-rotate-6">
+              <ShieldCheck className="h-4 w-4" />
+            </span>
+            <span className="font-display text-lg font-semibold text-primary tracking-tight">
+              BenefitsIQ
+            </span>
           </NavLink>
           <div className="flex items-center gap-1 overflow-x-auto">
             {NAV.map(({ to, label, icon: Icon, end }) => (
