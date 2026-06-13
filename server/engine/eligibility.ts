@@ -24,10 +24,28 @@ export const DEFAULT_BENEFIT_VALUES: BenefitValues = {
   nslp_annual_per_child: 900,
 };
 
+// SNAP benefit formula parameters (federal, simplified). Real SNAP reduces the maximum
+// allotment by 30% of *net* income, so the benefit falls as income rises — modeling this
+// makes the estimate respond to income instead of being a flat per-household amount.
+const SNAP_EARNED_INCOME_DEDUCTION = 0.2; // 20% of earned income is deducted
+const SNAP_STANDARD_DEDUCTION = 200; // simplified standard deduction (~$198–$258 by size)
+const SNAP_BENEFIT_REDUCTION_RATE = 0.3; // benefit drops by 30% of net income
+const SNAP_MIN_MONTHLY = 23; // federal minimum benefit for eligible small households
+
+function snapMaxMonthly(size: number, values: BenefitValues): number {
+  if (size <= 8) return values.snap_max_monthly[size] ?? values.snap_max_monthly[1] ?? 291;
+  return values.snap_max_monthly[8] + (size - 8) * values.snap_per_additional;
+}
+
+// Income-sensitive SNAP value: max allotment minus 30% of net monthly income, floored at the
+// federal minimum and capped at the max allotment. Net = gross − 20% earned deduction − standard.
 function snapAnnualValue(p: Profile, values: BenefitValues): number {
   const size = p.household_size || 1;
-  if (size <= 8) return (values.snap_max_monthly[size] ?? 291) * 12;
-  return (values.snap_max_monthly[8] + (size - 8) * values.snap_per_additional) * 12;
+  const maxMonthly = snapMaxMonthly(size, values);
+  const gross = p.monthly_income ?? 0;
+  const net = Math.max(0, gross * (1 - SNAP_EARNED_INCOME_DEDUCTION) - SNAP_STANDARD_DEDUCTION);
+  const monthly = Math.max(SNAP_MIN_MONTHLY, maxMonthly - SNAP_BENEFIT_REDUCTION_RATE * net);
+  return Math.round(Math.min(maxMonthly, monthly)) * 12;
 }
 
 function edgeCaseNotes(p: Profile, shortName: string): string | null {
