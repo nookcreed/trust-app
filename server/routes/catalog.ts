@@ -44,6 +44,25 @@ async function getRowCount(
   }
 }
 
+// Read the ACS source citation from the data itself so the label is always accurate:
+// stub data carries a PLACEHOLDER citation (shown as a modeled estimate); a real Census
+// load carries the true citation. Returns null if the table isn't loaded.
+async function getAcsSource(
+  db: { query(text: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }> },
+): Promise<string | null> {
+  try {
+    const { rows } = await db.query('SELECT source_citation FROM public.acs_state_stats LIMIT 1');
+    const r = rows[0];
+    const cite = r && typeof r.source_citation === 'string' ? r.source_citation : '';
+    if (!cite) return null;
+    return cite.includes('PLACEHOLDER')
+      ? 'Modeled estimate (illustrative) — live U.S. Census ACS load pending'
+      : cite;
+  } catch {
+    return null;
+  }
+}
+
 export function setupCatalogRoute(appkit: AppKitLike) {
   appkit.server.extend((app: Application) => {
     app.get('/api/data-catalog', async (req: Request, res) => {
@@ -51,14 +70,22 @@ export function setupCatalogRoute(appkit: AppKitLike) {
         // Read on behalf of the signed-in user (who owns the synced tables)
         const db = appkit.lakebase.asUser(req);
 
-        // Fetch row counts in parallel
-        const [programsCount, rulesCount, fplCount, cohortCount, acsCount] = await Promise.all([
+        // Fetch row counts + ACS source in parallel
+        const [
+          programsCount, rulesCount, fplCount, cohortCount, acsCount,
+          applyKbCount, applyEmbCount, benefitValuesCount, acsSource,
+        ] = await Promise.all([
           getRowCount(db, 'programs'),
           getRowCount(db, 'eligibility_rules'),
           getRowCount(db, 'fpl_thresholds'),
           getRowCount(db, 'cohort_stats'),
           getRowCount(db, 'acs_state_stats'),
+          getRowCount(db, 'apply_kb'),
+          getRowCount(db, 'apply_kb_emb'),
+          getRowCount(db, 'benefit_values'),
+          getAcsSource(db),
         ]);
+        const acsIsReal = acsSource !== null && !acsSource.includes('Modeled estimate');
 
         const tables: TableMetadata[] = [
           {
@@ -101,10 +128,37 @@ export function setupCatalogRoute(appkit: AppKitLike) {
             name: 'acs_state_stats',
             uc_path: 'benefitsiq.app.acs_state_stats',
             rows: acsCount,
-            description: 'U.S. Census American Community Survey state-level statistics (income, household, demographics)',
-            source: 'U.S. Census Bureau American Community Survey (ACS)',
+            description: 'State-level SNAP-receipt and poverty rates that contextualize the "families like you" panel',
+            source: acsSource ?? 'U.S. Census Bureau American Community Survey (ACS)',
             source_url: 'https://www.census.gov/programs-surveys/acs',
-            effective: acsCount === null ? 'pending load' : '2022 5-year estimates',
+            effective: acsCount === null ? 'pending load' : acsIsReal ? '2022 5-year estimates' : 'illustrative (pending real load)',
+          },
+          {
+            name: 'apply_kb',
+            uc_path: 'benefitsiq.app.apply_kb',
+            rows: applyKbCount,
+            description: 'Curated, cited how-to-apply guidance per program — the corpus behind the RAG "How to apply" answers',
+            source: 'USDA FNS / CMS / HHS official agency guidance',
+            source_url: 'https://www.benefits.gov',
+            effective: '2024',
+          },
+          {
+            name: 'apply_kb_emb',
+            uc_path: 'benefitsiq.app.apply_kb_emb',
+            rows: applyEmbCount,
+            description: 'Vector embeddings (GTE-Large, 1024-dim) of the apply_kb chunks for semantic retrieval',
+            source: 'Databricks GTE-Large embedding endpoint',
+            source_url: 'https://docs.databricks.com/aws/en/machine-learning/foundation-models',
+            effective: '2024',
+          },
+          {
+            name: 'benefit_values',
+            uc_path: 'benefitsiq.app.benefit_values',
+            rows: benefitValuesCount,
+            description: 'Benefit dollar values (SNAP/WIC/CHIP/NSLP) as data, not code — injected into the eligibility engine at runtime',
+            source: 'USDA FNS / federal benefit schedules',
+            source_url: 'https://www.fns.usda.gov/snap/allotment/COLA',
+            effective: 'FY2024',
           },
         ];
 
@@ -123,6 +177,11 @@ export function setupCatalogRoute(appkit: AppKitLike) {
             name: 'Model Serving (databricks-meta-llama-3-3-70b-instruct)',
             description: 'Conversational AI for guided eligibility discovery and natural language Q&A',
             role: 'Chat interface and natural language understanding',
+          },
+          {
+            name: 'Model Serving (databricks-gte-large-en)',
+            description: 'Embedding model (1024-dim) for semantic retrieval over the how-to-apply knowledge base',
+            role: 'Powers the RAG "How to apply" feature (cosine search over apply_kb)',
           },
           {
             name: 'On-behalf-of-user (OBO) access',

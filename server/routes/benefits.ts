@@ -180,12 +180,18 @@ export async function runCheck(appkit: AppKitLike, profile: Profile, req: Reques
     );
     const a = acsRes.rows[0];
     if (a) {
+      // Honest, presentable source label. Stub data carries a PLACEHOLDER citation; show a
+      // clean "modeled estimate" label for it, and the real Census citation once loaded.
+      const rawCite = asStr(a.source_citation);
+      const source = rawCite.includes('PLACEHOLDER')
+        ? 'Modeled estimate — live U.S. Census ACS load pending'
+        : rawCite || 'U.S. Census Bureau, ACS 2022';
       acs = {
         state: asStr(a.state),
         state_name: asStr(a.state_name),
         snap_receipt_pct: num(a.snap_receipt_pct) ?? 0,
         poverty_pct: num(a.poverty_pct) ?? 0,
-        source: asStr(a.source_citation) || 'U.S. Census Bureau, ACS 2022',
+        source,
       };
     }
   } catch {
