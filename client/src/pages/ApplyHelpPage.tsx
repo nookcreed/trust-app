@@ -105,7 +105,7 @@ export function ApplyHelpPage() {
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
       {/* Header */}
-      <header className="space-y-2">
+      <header className="space-y-2 reveal">
         <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
           <BookOpen className="h-8 w-8 text-primary" />
           How to Apply
@@ -118,7 +118,7 @@ export function ApplyHelpPage() {
       </header>
 
       {/* Program picker */}
-      <Card className="shadow-md">
+      <Card className="card-civic">
         <CardHeader>
           <CardTitle className="text-base">1. Pick a program (optional)</CardTitle>
         </CardHeader>
@@ -148,7 +148,7 @@ export function ApplyHelpPage() {
       </Card>
 
       {/* Question input */}
-      <Card className="shadow-md">
+      <Card className="card-civic">
         <CardHeader>
           <CardTitle className="text-base">2. Ask your question</CardTitle>
         </CardHeader>
@@ -193,7 +193,7 @@ export function ApplyHelpPage() {
 
       {/* Loading */}
       {isLoading && (
-        <Card className="shadow-md">
+        <Card className="card-civic">
           <CardContent className="p-6 text-center text-muted-foreground">
             <div className="flex gap-1 justify-center">
               <span className="animate-bounce">●</span>
@@ -216,7 +216,7 @@ export function ApplyHelpPage() {
 
       {/* Answer */}
       {result !== null && !isLoading && (
-        <Card className="shadow-lg border-primary/20">
+        <Card className="card-civic border-primary/25">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-base">

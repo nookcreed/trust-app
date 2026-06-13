@@ -125,7 +125,7 @@ export function HowItWorksPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <header className="text-center space-y-3">
+      <header className="text-center space-y-3 reveal">
         <h1 className="text-3xl font-bold text-foreground">How It Works</h1>
         <p className="text-muted-foreground">
           Why you can trust this: the language model only reads your words. A deterministic engine
@@ -139,7 +139,7 @@ export function HowItWorksPage() {
       </header>
 
       {/* Architecture explainer */}
-      <Card className="shadow-md">
+      <Card className="card-civic">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
@@ -205,7 +205,7 @@ export function HowItWorksPage() {
       </Card>
 
       {/* Live interactive demo */}
-      <Card className="shadow-md">
+      <Card className="card-civic">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Send className="h-5 w-5 text-primary" />

@@ -125,10 +125,10 @@ export function DataSourcesPage() {
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       {/* Header */}
-      <header className="space-y-2">
+      <header className="space-y-2 reveal">
         <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
           <Database className="h-8 w-8 text-primary" />
-          Data & Sources
+          Data &amp; Sources
         </h1>
         <p className="text-muted-foreground">
           Everything BenefitsIQ tells you is grounded in these datasets, synced from Unity Catalog into Lakebase.
@@ -136,7 +136,7 @@ export function DataSourcesPage() {
       </header>
 
       {/* Unity Catalog Tables */}
-      <Card className="shadow-md">
+      <Card className="card-civic">
         <CardHeader>
           <CardTitle>Unity Catalog Delta Tables</CardTitle>
         </CardHeader>
@@ -183,7 +183,7 @@ export function DataSourcesPage() {
       <Separator />
 
       {/* Databricks Tools */}
-      <Card className="shadow-md">
+      <Card className="card-civic">
         <CardHeader>
           <CardTitle>Databricks Tools Powering BenefitsIQ</CardTitle>
         </CardHeader>
