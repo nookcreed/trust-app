@@ -145,7 +145,14 @@ export function ApplyHelpPage() {
         }),
       });
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        let detail = `HTTP ${response.status}`;
+        try {
+          const errBody = (await response.json()) as { error?: unknown };
+          if (typeof errBody.error === 'string' && errBody.error) detail = errBody.error;
+        } catch {
+          // non-JSON error body — keep the status code
+        }
+        throw new Error(detail);
       }
       const data: unknown = await response.json();
       if (!isApplyHelpResponse(data)) {

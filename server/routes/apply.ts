@@ -267,8 +267,12 @@ async function retrieveLexical(
     `ORDER BY relevance DESC, id ASC ` +
     `LIMIT $${limitIdx}`;
 
-  const { rows } = await db.query(sql, params);
-  return rows.map(rowToChunk);
+  try {
+    const { rows } = await db.query(sql, params);
+    return rows.map(rowToChunk);
+  } catch {
+    return []; // read failed (e.g., grant lapsed) — degrade gracefully instead of 500
+  }
 }
 
 // Dispatcher: semantic first, lexical as a guaranteed fallback so the route never breaks.
