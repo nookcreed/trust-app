@@ -21,11 +21,71 @@ const PROGRAMS: Array<{ short: string; label: string }> = [
   { short: 'NSLP', label: 'School Meals' },
 ];
 
-const EXAMPLE_QUESTIONS = [
-  'What documents do I need for SNAP in Georgia?',
-  'How fast can I get emergency food assistance?',
-  'Where do I apply for Medicaid for my kids?',
-];
+// Placeholder + example chips, tailored to the selected program (falls back to general).
+interface PromptSet {
+  placeholder: string;
+  examples: string[];
+}
+
+const DEFAULT_PROMPTS: PromptSet = {
+  placeholder: "e.g., What documents do I need for SNAP in Georgia?",
+  examples: [
+    'What documents do I need for SNAP in Georgia?',
+    'How fast can I get emergency food assistance?',
+    'Where do I apply for Medicaid for my kids?',
+  ],
+};
+
+const PROGRAM_PROMPTS: Record<string, PromptSet> = {
+  SNAP: {
+    placeholder: 'e.g., What documents do I need to apply for SNAP?',
+    examples: [
+      'What documents do I need for SNAP?',
+      'How fast can I get emergency (expedited) SNAP?',
+      'Where do I apply for SNAP in my state?',
+    ],
+  },
+  MEDICAID: {
+    placeholder: 'e.g., How do I apply for Medicaid for my family?',
+    examples: [
+      'How do I apply for Medicaid?',
+      'What documents does Medicaid require?',
+      'How long does Medicaid approval take?',
+    ],
+  },
+  CHIP: {
+    placeholder: "e.g., How do I enroll my kids in CHIP?",
+    examples: [
+      'How do I enroll my kids in CHIP?',
+      'What does CHIP cover?',
+      'Can I apply for CHIP any time of year?',
+    ],
+  },
+  WIC: {
+    placeholder: 'e.g., How do I apply for WIC while pregnant?',
+    examples: [
+      'How do I apply for WIC?',
+      'What can I buy with WIC benefits?',
+      'What should I bring to my WIC appointment?',
+    ],
+  },
+  LIHEAP: {
+    placeholder: 'e.g., How do I get help paying my energy bill?',
+    examples: [
+      'How do I apply for LIHEAP?',
+      'Can LIHEAP help in a heating or cooling emergency?',
+      'What documents does LIHEAP need?',
+    ],
+  },
+  NSLP: {
+    placeholder: 'e.g., How do I apply for free school meals?',
+    examples: [
+      'How do I apply for free or reduced-price school meals?',
+      'Does my child automatically qualify for school meals?',
+      'When can I apply for school meal benefits?',
+    ],
+  },
+};
 
 interface ApplySource {
   title: string;
@@ -63,6 +123,10 @@ export function ApplyHelpPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplyHelpResponse | null>(null);
+
+  // Placeholder + example chips reflect the selected program (or general guidance).
+  const prompts: PromptSet =
+    (selectedProgram && PROGRAM_PROMPTS[selectedProgram]) || DEFAULT_PROMPTS;
 
   const askHelp = async (q: string) => {
     const trimmed = q.trim();
@@ -155,7 +219,7 @@ export function ApplyHelpPage() {
         <CardContent className="space-y-3">
           <div className="flex gap-2">
             <Textarea
-              placeholder="e.g., What documents do I need for SNAP in Georgia?"
+              placeholder={prompts.placeholder}
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -172,7 +236,7 @@ export function ApplyHelpPage() {
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {EXAMPLE_QUESTIONS.map((ex) => (
+            {prompts.examples.map((ex) => (
               <Button
                 key={ex}
                 variant="outline"
