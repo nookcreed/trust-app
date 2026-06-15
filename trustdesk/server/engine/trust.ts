@@ -19,6 +19,7 @@ import type {
 import {
   SPECIALTY_REQUIREMENTS,
   SPECIALTY_SYNONYMS,
+  SPECIALTY_KEYWORD_RULES,
   FACILITY_TYPE_EXPECTATIONS,
   ACCREDITATION_KEYWORDS,
   IMPORTANT_FIELDS,
@@ -85,10 +86,41 @@ export function parseFacility(raw: Facility): ParsedFacility {
   };
 }
 
+/** Convert camelCase or PascalCase to space-separated lowercase words */
+function camelToWords(s: string): string {
+  return s
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .toLowerCase()
+    .trim();
+}
+
 /** Normalize a specialty name to its canonical form */
 function normalizeSpecialty(name: string): string {
   const lower = name.toLowerCase().trim();
-  return SPECIALTY_SYNONYMS[lower] ?? lower;
+
+  // 1. Direct match in SPECIALTY_REQUIREMENTS
+  if (SPECIALTY_REQUIREMENTS[lower]) return lower;
+
+  // 2. Explicit synonym lookup
+  if (SPECIALTY_SYNONYMS[lower]) return SPECIALTY_SYNONYMS[lower];
+
+  // 3. Convert camelCase and try again
+  const words = camelToWords(name);
+  if (words !== lower) {
+    if (SPECIALTY_REQUIREMENTS[words]) return words;
+    if (SPECIALTY_SYNONYMS[words]) return SPECIALTY_SYNONYMS[words];
+  }
+
+  // 4. Keyword-based fallback: check if the words contain keyword patterns
+  for (const rule of SPECIALTY_KEYWORD_RULES) {
+    if (rule.keywords.every((kw) => words.includes(kw))) {
+      return rule.canonical;
+    }
+  }
+
+  // 5. No match — return the lowercased words form
+  return words;
 }
 
 /** Deduplicate a list of strings (case-insensitive) */

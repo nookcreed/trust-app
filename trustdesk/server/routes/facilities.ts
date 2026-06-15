@@ -67,13 +67,13 @@ export function setupFacilitiesRoutes(appkit: AppKitLike) {
 
         if (stateFilter) {
           conditions.push(`"address_stateOrRegion" ILIKE $${paramIdx}`);
-          params.push(stateFilter);
+          params.push(`%${stateFilter}%`);
           paramIdx++;
         }
 
         if (typeFilter) {
-          conditions.push(`organization_type ILIKE $${paramIdx}`);
-          params.push(typeFilter);
+          conditions.push(`(organization_type ILIKE $${paramIdx} OR name ILIKE $${paramIdx})`);
+          params.push(`%${typeFilter}%`);
           paramIdx++;
         }
 

@@ -19,6 +19,17 @@ Return ONLY a JSON object:
   "reply": "brief helpful response to the user"
 }
 
+IMPORTANT search rules:
+- Always separate location from specialty/topic. If the user says "kerala cardiology", set
+  filters.state = "Kerala" AND search_query = "cardiology". Do NOT put both in search_query.
+- Indian states to recognize: Andhra Pradesh, Bihar, Chhattisgarh, Delhi, Goa, Gujarat,
+  Haryana, Himachal Pradesh, Jharkhand, Karnataka, Kerala, Madhya Pradesh, Maharashtra,
+  Manipur, Meghalaya, Mizoram, Nagaland, Odisha, Punjab, Rajasthan, Sikkim, Tamil Nadu,
+  Telangana, Tripura, Uttar Pradesh, Uttarakhand, West Bengal, Assam, Arunachal Pradesh, Jammu and Kashmir.
+- If the user mentions a facility type (hospital, clinic, nursing home), put it in filters.type.
+- search_query should contain only the medical specialty, department, or facility name to search for.
+- For terse queries like "bihar hospitals" → filters.state="Bihar", filters.type="hospital", search_query=null.
+
 You help users FIND and EXPLORE facilities. You NEVER:
 - Assess trust or quality of a facility
 - Make health recommendations
@@ -183,13 +194,13 @@ export function setupChatRoute(appkit: AppKitLike) {
 
           if (intent.filters.state) {
             conditions.push(`"address_stateOrRegion" ILIKE $${paramIdx}`);
-            params.push(intent.filters.state);
+            params.push(`%${intent.filters.state}%`);
             paramIdx++;
           }
 
           if (intent.filters.type) {
-            conditions.push(`organization_type ILIKE $${paramIdx}`);
-            params.push(intent.filters.type);
+            conditions.push(`(organization_type ILIKE $${paramIdx} OR name ILIKE $${paramIdx})`);
+            params.push(`%${intent.filters.type}%`);
             paramIdx++;
           }
 

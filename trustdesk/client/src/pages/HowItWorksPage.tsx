@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -7,6 +7,8 @@ import {
   Badge,
   Button,
   Separator,
+  Skeleton,
+  Input,
 } from '@databricks/appkit-ui/react';
 import {
   ShieldCheck,
@@ -27,12 +29,23 @@ import {
   Zap,
   Database,
   Layers,
-  HelpCircle,
   TestTube2,
 } from 'lucide-react';
 import { TrustGauge } from '../components/TrustGauge';
 import { TrustDimensionBar } from '../components/TrustDimensionBar';
-import type { TrustProfile, DimensionScore, TrustLevel } from '../lib/types';
+import type { TrustProfile } from '../lib/types';
+
+interface StarFacility {
+  id: string;
+  name: string;
+  why: string;
+}
+
+const STAR_FACILITIES: StarFacility[] = [
+  { id: 'fadba1a4-dae8-4917-81f3-1dffbc9ee071', name: 'Shaurya Hospital', why: '2 doctors, 19 specialties' },
+  { id: '58d49f6f-42fa-4172-9e3b-8fdeb5d056cf', name: 'Dr Jindal ENT & Superspeciality', why: 'Only a stethoscope' },
+  { id: '2819fe14-ac78-46f6-93de-85e65a1634ac', name: 'Apollo Adlux Hospital', why: 'Well-equipped, high trust' },
+];
 
 const DIMENSIONS_TABLE = [
   {
@@ -93,158 +106,79 @@ const DIMENSIONS_TABLE = [
   },
 ];
 
-// Pre-loaded demo profiles
-const DEMO_PROFILES: Record<string, TrustProfile> = {
-  honest_hospital: {
-    facility_id: 'demo-1',
-    facility_name: 'Reliable Care Hospital, Trivandrum',
-    composite_score: 82,
-    composite_level: 'high',
-    scored_dimensions: 7,
-    total_dimensions: 7,
-    flags: [
-      { severity: 'info', message: 'Website last checked 3 days ago', dimension: 'digital' },
-    ],
-    dimensions: buildDemoDimensions('high'),
-  },
-  suspicious_clinic: {
-    facility_id: 'demo-2',
-    facility_name: 'Sarvam Multi-Speciality Clinic, Ernakulam',
-    composite_score: 34,
-    composite_level: 'low',
-    scored_dimensions: 6,
-    total_dimensions: 7,
-    flags: [
-      { severity: 'critical', message: '2 doctors covering 19 specialties — medically implausible', dimension: 'claims_vs_evidence' },
-      { severity: 'critical', message: 'Coordinates place facility in the North Atlantic Ocean, not Kerala', dimension: 'location' },
-      { severity: 'warning', message: 'Claims NABH accreditation but not found in registry', dimension: 'accreditation' },
-      { severity: 'warning', message: 'Website returns HTTP 503', dimension: 'digital' },
-    ],
-    dimensions: buildDemoDimensions('low'),
-  },
-  mixed_facility: {
-    facility_id: 'demo-3',
-    facility_name: 'District General Hospital, Pune',
-    composite_score: 61,
-    composite_level: 'moderate',
-    scored_dimensions: 5,
-    total_dimensions: 7,
-    flags: [
-      { severity: 'warning', message: 'Specialty count exceeds typical staffing ratio', dimension: 'claims_vs_evidence' },
-      { severity: 'info', message: '2 dimensions could not be scored due to missing data', dimension: 'completeness' },
-    ],
-    dimensions: buildDemoDimensions('moderate'),
-  },
-};
-
-function buildDemoDimensions(profile: 'high' | 'low' | 'moderate'): DimensionScore[] {
-  if (profile === 'high') {
-    return [
-      makeDim('claims_vs_evidence', 'Claims vs Evidence', 0.25, 85, 'high', [
-        { claim: 'Offers 8 specialties', finding: '12 doctors across 8 departments — ratio is plausible', supported: true, source: 'staffing-ratio-check' },
-        { claim: 'Has surgical capability', finding: '3 surgeons on staff with valid MCI registration', supported: true, source: 'mci-registry-lookup' },
-      ], []),
-      makeDim('staffing', 'Staffing Adequacy', 0.20, 80, 'high', [
-        { claim: '12 doctors listed', finding: 'Doctor-to-bed ratio of 1:8 is within normal range', supported: true, source: 'iphs-norms' },
-      ], []),
-      makeDim('location', 'Location Verification', 0.15, 95, 'high', [
-        { claim: 'Located in Trivandrum, Kerala', finding: 'Coordinates 8.5241N, 76.9366E confirmed within Trivandrum district boundary', supported: true, source: 'geo-boundary-check' },
-      ], []),
-      makeDim('accreditation', 'Accreditation Status', 0.15, 75, 'moderate', [
-        { claim: 'NABH accredited', finding: 'Found in NABH registry, accreditation valid until 2027', supported: true, source: 'nabh-registry' },
-      ], []),
-      makeDim('digital', 'Digital Presence', 0.05, 70, 'moderate', [
-        { claim: 'Has website', finding: 'Website responds with HTTP 200, SSL valid', supported: true, source: 'http-probe' },
-      ], [{ severity: 'info', message: 'Website last checked 3 days ago', dimension: 'digital' }]),
-      makeDim('completeness', 'Data Completeness', 0.10, 90, 'high', [
-        { claim: 'All required fields', finding: '18/20 fields populated (90%)', supported: true, source: 'schema-check' },
-      ], []),
-      makeDim('consistency', 'Data Consistency', 0.10, 80, 'high', [
-        { claim: 'Hospital type with 96 beds', finding: 'Facility type "Hospital" is consistent with bed count', supported: true, source: 'type-size-check' },
-      ], []),
-    ];
-  } else if (profile === 'low') {
-    return [
-      makeDim('claims_vs_evidence', 'Claims vs Evidence', 0.25, 15, 'low', [
-        { claim: 'Offers 19 specialties', finding: 'Only 2 doctors listed — cannot plausibly staff 19 specialties', supported: false, source: 'staffing-ratio-check' },
-        { claim: 'Has cardiac surgery', finding: 'No cardiologist or cardiac surgeon on staff', supported: false, source: 'specialty-staff-match' },
-      ], [{ severity: 'critical', message: '2 doctors covering 19 specialties — medically implausible', dimension: 'claims_vs_evidence' }]),
-      makeDim('staffing', 'Staffing Adequacy', 0.20, 20, 'low', [
-        { claim: '2 doctors listed', finding: 'Doctor-to-specialty ratio of 1:9.5 is far below minimum threshold', supported: false, source: 'iphs-norms' },
-      ], []),
-      makeDim('location', 'Location Verification', 0.15, 0, 'low', [
-        { claim: 'Located in Ernakulam, Kerala', finding: 'Coordinates 40.7128N, -74.0060W are in the North Atlantic Ocean', supported: false, source: 'geo-boundary-check' },
-      ], [{ severity: 'critical', message: 'Coordinates place facility in the North Atlantic Ocean, not Kerala', dimension: 'location' }]),
-      makeDim('accreditation', 'Accreditation Status', 0.15, 30, 'low', [
-        { claim: 'Claims NABH', finding: 'Not found in NABH registry search', supported: false, source: 'nabh-registry' },
-      ], [{ severity: 'warning', message: 'Claims NABH accreditation but not found in registry', dimension: 'accreditation' }]),
-      makeDim('digital', 'Digital Presence', 0.05, 10, 'low', [
-        { claim: 'Has website', finding: 'Website returns HTTP 503 Service Unavailable', supported: false, source: 'http-probe' },
-      ], [{ severity: 'warning', message: 'Website returns HTTP 503', dimension: 'digital' }]),
-      makeDim('completeness', 'Data Completeness', 0.10, 55, 'moderate', [
-        { claim: 'Required fields', finding: '11/20 fields populated (55%)', supported: false, source: 'schema-check' },
-      ], []),
-      makeDim('consistency', 'Data Consistency', 0.10, 40, 'low', [
-        { claim: 'Clinic with 0 beds claiming surgery', finding: 'Facility type "Clinic" with surgical specialties is inconsistent', supported: false, source: 'type-size-check' },
-      ], []),
-    ];
-  } else {
-    return [
-      makeDim('claims_vs_evidence', 'Claims vs Evidence', 0.25, 55, 'moderate', [
-        { claim: 'Offers 12 specialties', finding: '8 doctors — some specialties may overlap or be understaffed', supported: false, source: 'staffing-ratio-check' },
-      ], [{ severity: 'warning', message: 'Specialty count exceeds typical staffing ratio', dimension: 'claims_vs_evidence' }]),
-      makeDim('staffing', 'Staffing Adequacy', 0.20, 65, 'moderate', [
-        { claim: '8 doctors listed', finding: 'Doctor-to-bed ratio of 1:15 is below recommended', supported: false, source: 'iphs-norms' },
-      ], []),
-      makeDim('location', 'Location Verification', 0.15, 90, 'high', [
-        { claim: 'Located in Pune, Maharashtra', finding: 'Coordinates confirmed within Pune district boundary', supported: true, source: 'geo-boundary-check' },
-      ], []),
-      makeDim('accreditation', 'Accreditation Status', 0.15, 70, 'moderate', [
-        { claim: 'State registered', finding: 'Found in state health registry', supported: true, source: 'state-registry' },
-      ], []),
-      makeDim('digital', 'Digital Presence', 0.05, 0, 'insufficient_data' as TrustLevel, [], []),
-      makeDim('completeness', 'Data Completeness', 0.10, 45, 'low', [
-        { claim: 'Required fields', finding: '9/20 fields populated (45%)', supported: false, source: 'schema-check' },
-      ], [{ severity: 'info', message: '2 dimensions could not be scored due to missing data', dimension: 'completeness' }]),
-      makeDim('consistency', 'Data Consistency', 0.10, 0, 'insufficient_data' as TrustLevel, [], []),
-    ];
-  }
-}
-
-function makeDim(
-  key: string,
-  label: string,
-  weight: number,
-  score: number,
-  level: TrustLevel,
-  evidence: DimensionScore['evidence'],
-  flags: DimensionScore['flags'],
-): DimensionScore {
-  return {
-    key: key as DimensionScore['key'],
-    label,
-    weight,
-    score,
-    level,
-    evidence,
-    flags,
-    available: level !== 'insufficient_data',
-  };
-}
-
 export function HowItWorksPage() {
-  const [selectedDemo, setSelectedDemo] = useState<string>('suspicious_clinic');
-  const [demoAnimating, setDemoAnimating] = useState(false);
+  const [demoProfile, setDemoProfile] = useState<TrustProfile | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [selectedStar, setSelectedStar] = useState<string>(STAR_FACILITIES[0].id);
+  const [customSearch, setCustomSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string }>>([]);
+  const [searching, setSearching] = useState(false);
 
-  const handleDemoSwitch = useCallback((key: string) => {
-    setDemoAnimating(true);
-    setTimeout(() => {
-      setSelectedDemo(key);
-      setDemoAnimating(false);
-    }, 200);
+  const loadProfile = useCallback((facilityId: string) => {
+    setDemoLoading(true);
+    setDemoProfile(null);
+    fetch('/api/trust-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ facility_id: facilityId }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        const p = data.profile ?? data;
+        if (p && typeof p.composite_score === 'number') {
+          setDemoProfile(p);
+        }
+        setDemoLoading(false);
+      })
+      .catch(() => setDemoLoading(false));
   }, []);
 
-  const demoProfile = DEMO_PROFILES[selectedDemo];
+  useEffect(() => {
+    loadProfile(STAR_FACILITIES[0].id);
+  }, [loadProfile]);
+
+  const handleStarClick = (id: string) => {
+    setSelectedStar(id);
+    setSearchResults([]);
+    loadProfile(id);
+  };
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleSearch = useCallback((query: string) => {
+    setCustomSearch(query);
+    clearTimeout(debounceRef.current);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    debounceRef.current = setTimeout(() => {
+      setSearching(true);
+      fetch(`/api/facilities?q=${encodeURIComponent(query.trim())}&limit=5`)
+        .then((r) => r.json())
+        .then((data) => {
+          const facilities = data.facilities ?? [];
+          setSearchResults(
+            facilities.map((f: { id: string; facility_name: string }) => ({
+              id: f.id,
+              name: f.facility_name,
+            })),
+          );
+          setSearching(false);
+        })
+        .catch(() => setSearching(false));
+    }, 300);
+  }, []);
+
+  const handleSearchSelect = (id: string) => {
+    setSelectedStar('');
+    setSearchResults([]);
+    setCustomSearch('');
+    loadProfile(id);
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 space-y-16">
@@ -410,47 +344,74 @@ export function HowItWorksPage() {
             Live Engine Demo
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Pick a pre-loaded facility and see all 7 dimensions score in real-time.
+            Pick a facility or search for any of the 10,000 records — the trust engine scores it in real time.
           </p>
         </div>
 
-        {/* Demo selector */}
-        <div className="flex items-center justify-center gap-3">
-          <Button
-            variant={selectedDemo === 'honest_hospital' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleDemoSwitch('honest_hospital')}
-            className="gap-1.5"
-          >
-            <CheckCircle className="h-4 w-4" />
-            Reliable Hospital
-          </Button>
-          <Button
-            variant={selectedDemo === 'suspicious_clinic' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleDemoSwitch('suspicious_clinic')}
-            className="gap-1.5"
-          >
-            <XCircle className="h-4 w-4" />
-            Suspicious Clinic
-          </Button>
-          <Button
-            variant={selectedDemo === 'mixed_facility' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleDemoSwitch('mixed_facility')}
-            className="gap-1.5"
-          >
-            <HelpCircle className="h-4 w-4" />
-            Mixed Signals
-          </Button>
+        {/* Star facility buttons */}
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          {STAR_FACILITIES.map((sf) => (
+            <Button
+              key={sf.id}
+              variant={selectedStar === sf.id ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => handleStarClick(sf.id)}
+              className="gap-1.5"
+            >
+              {sf.name}
+              <span className="text-[10px] opacity-70">— {sf.why}</span>
+            </Button>
+          ))}
+        </div>
+
+        {/* Search any facility */}
+        <div className="max-w-md mx-auto">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Search any facility by name..."
+              value={customSearch}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="text-sm"
+            />
+            {searching && (
+              <div className="flex items-center px-2">
+                <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+          {searchResults.length > 0 && (
+            <div className="mt-2 rounded-lg border bg-background shadow-sm divide-y">
+              {searchResults.map((r) => (
+                <button
+                  key={r.id}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
+                  onClick={() => handleSearchSelect(r.id)}
+                >
+                  {r.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Demo result */}
-        <div
-          className={`transition-opacity duration-200 ${
-            demoAnimating ? 'opacity-0' : 'opacity-100'
-          }`}
-        >
+        <div>
+          {demoLoading ? (
+            <Card className="border-primary/20">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-start gap-6">
+                  <Skeleton className="w-[160px] h-[160px] rounded-full shrink-0" />
+                  <div className="flex-1 space-y-3">
+                    <Skeleton className="h-6 w-48" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                </div>
+                {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <Skeleton key={i} className="h-14 rounded-lg" />
+                ))}
+              </CardContent>
+            </Card>
+          ) : demoProfile ? (
           <Card className="border-primary/20">
             <CardContent className="p-6">
               <div className="flex items-start gap-6 mb-6">
@@ -467,9 +428,9 @@ export function HowItWorksPage() {
                     Scored {demoProfile.scored_dimensions} of {demoProfile.total_dimensions}{' '}
                     dimensions
                   </p>
-                  {demoProfile.flags.length > 0 && (
+                  {(demoProfile.flags ?? []).length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
-                      {demoProfile.flags.map((f, i) => (
+                      {(demoProfile.flags ?? []).map((f, i) => (
                         <Badge
                           key={i}
                           variant={f.severity === 'critical' ? 'destructive' : 'outline'}
@@ -491,12 +452,21 @@ export function HowItWorksPage() {
               </div>
 
               <div className="space-y-3">
-                {demoProfile.dimensions.map((dim) => (
+                {(demoProfile.dimensions ?? []).map((dim) => (
                   <TrustDimensionBar key={dim.key} dimension={dim} />
                 ))}
               </div>
             </CardContent>
           </Card>
+          ) : (
+            <Card className="border-primary/20">
+              <CardContent className="py-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Select a facility above to see the trust engine in action.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </section>
 

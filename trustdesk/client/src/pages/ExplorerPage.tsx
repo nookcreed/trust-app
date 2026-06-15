@@ -67,9 +67,9 @@ const STAR_FACILITIES = [
 ];
 
 const SEARCH_PROMPTS = [
-  { label: 'Hospitals claiming surgery with <3 doctors', icon: Activity },
-  { label: 'Facilities in Bihar with no equipment listed', icon: AlertTriangle },
-  { label: 'Cardiology departments without an ECG', icon: Search },
+  { label: 'Hospitals in Kerala with cardiology', icon: Activity },
+  { label: 'Facilities in Bihar', icon: AlertTriangle },
+  { label: 'Multispeciality clinics in Maharashtra', icon: Search },
 ];
 
 export function ExplorerPage() {
