@@ -29,7 +29,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "Unlicensed",
+  "license": "MIT",
   "description": "BenefitsIQ — find the government benefits your family has earned",
   "dependencies": {
     "@databricks/appkit": "0.38.1",

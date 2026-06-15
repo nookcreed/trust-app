@@ -150,3 +150,57 @@ describe('Determinism + data-driven values', () => {
     expect(r.estimated_annual_value).toBe(12000); // 1000/mo * 12
   });
 });
+
+describe('TANF — composition gate + value estimation ("adding a program is adding data")', () => {
+  it('is eligible with children under FPL threshold, with scaled annual value', () => {
+    // Family of 3 in GA, income well under 50% FPL -> eligible
+    const p: Profile = { state: 'GA', household_size: 3, monthly_income: 500, has_children: true };
+    const r = evaluateProgram(p, prog('TANF'), [rule({ max_pct_fpl: 0.50 })], fpl(3, 25820));
+    expect(r.eligible).toBe(true);
+    expect(r.confidence).toBe('likely');
+    // tanf_monthly_base 400, hh3 -> 400/mo * 12 = 4800
+    expect(r.estimated_annual_value).toBe(4800);
+  });
+
+  it('rules TANF out without children (composition gate)', () => {
+    const p: Profile = { state: 'GA', household_size: 1, monthly_income: 0 };
+    const r = evaluateProgram(p, prog('TANF'), [rule({ max_pct_fpl: 0.50 })], fpl(1, 15060));
+    expect(r.eligible).toBe(false);
+    expect(r.reason).toContain('dependent children');
+  });
+
+  it('scales TANF value for larger households', () => {
+    // Family of 5: base 400 + 2 extra members * 80 = 560/mo * 12 = 6720
+    const p: Profile = { state: 'GA', household_size: 5, monthly_income: 0, has_children: true };
+    const r = evaluateProgram(p, prog('TANF'), [rule({ max_pct_fpl: 0.50 })], fpl(5, 36580));
+    expect(r.eligible).toBe(true);
+    expect(r.estimated_annual_value).toBe(6720);
+  });
+});
+
+describe('SECTION8 — income test + flat value estimation', () => {
+  it('is eligible under income threshold with flat housing voucher value', () => {
+    // Individual in GA, income under 50% FPL -> eligible
+    const p: Profile = { state: 'GA', household_size: 1, monthly_income: 400 };
+    const r = evaluateProgram(p, prog('SECTION8'), [rule({ max_pct_fpl: 0.50 })], fpl(1, 15060));
+    expect(r.eligible).toBe(true);
+    expect(r.confidence).toBe('likely');
+    // section8_monthly_base 1000 * 12 = 12000 (flat, doesn't scale with household)
+    expect(r.estimated_annual_value).toBe(12000);
+  });
+
+  it('does NOT have a composition gate (available to individuals without children)', () => {
+    const p: Profile = { state: 'GA', household_size: 1, monthly_income: 0 };
+    const r = evaluateProgram(p, prog('SECTION8'), [rule({ max_pct_fpl: 0.50 })], fpl(1, 15060));
+    // Should be eligible even without children — Section 8 has no composition gate
+    expect(r.eligible).toBe(true);
+  });
+
+  it('is ineligible when income exceeds the FPL threshold', () => {
+    // Income at 80% FPL, threshold is 50% FPL -> ineligible
+    const p: Profile = { state: 'GA', household_size: 3, monthly_income: 1800 };
+    const r = evaluateProgram(p, prog('SECTION8'), [rule({ max_pct_fpl: 0.50 })], fpl(3, 25820));
+    expect(r.eligible).toBe(false);
+    expect(r.confidence).toBe('unlikely');
+  });
+});

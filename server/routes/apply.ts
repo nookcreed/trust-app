@@ -6,16 +6,26 @@
 //      public.apply_kb (loaded by scripts/build_apply_kb.py), and
 //   2. COMPOSING a grounded, cited answer with Model Serving, constrained to that context.
 //
-// Retrieval degrades gracefully: the shipped path is pure-Postgres lexical search and
-// needs NO external Vector Search endpoint or embedding service. It is written behind a
-// `retrieveChunks()` boundary so it can later be upgraded to pgvector / Vector Search
-// (see USE_VECTOR) without touching the rest of the route.
+// Retrieval degrades gracefully across three tiers:
+//   Tier 1: Databricks Vector Search — managed ANN index, fastest, best recall.
+//   Tier 2: In-process semantic cosine similarity over precomputed embeddings in Lakebase.
+//   Tier 3: Lexical LIKE-based search — guaranteed fallback, needs no embedding service.
+//
+// The `retrieveChunks()` dispatcher cascades through these tiers automatically so the
+// route never breaks even if Vector Search or embeddings are unavailable.
 
 import type { Request } from 'express';
 import type { AppKitLike } from './benefits';
+import { WorkspaceClient } from '@databricks/sdk-experimental';
 
-const VALID_PROGRAMS = new Set(['SNAP', 'MEDICAID', 'CHIP', 'WIC', 'LIHEAP', 'NSLP']);
+const VALID_PROGRAMS = new Set(['SNAP', 'MEDICAID', 'CHIP', 'WIC', 'LIHEAP', 'NSLP', 'TANF', 'SECTION8']);
 const TOP_K = 5;
+
+// Vector Search index name — configurable via env, defaults to the BenefitsIQ apply KB index.
+const VS_INDEX_NAME = process.env.DATABRICKS_VS_INDEX_NAME || 'benefitsiq.app.apply_kb_vs_index';
+
+// Columns to retrieve from the Vector Search index. Must match the KbChunk fields.
+const VS_COLUMNS = ['id', 'program_short', 'title', 'chunk_text', 'source_name', 'source_url'];
 
 interface KbChunk {
   id: number;
@@ -102,7 +112,88 @@ function tokenize(q: string): string[] {
   return out.slice(0, 12);
 }
 
-// --- Semantic vector retrieval (primary) ---------------------------------------------------
+// --- Tier 1: Databricks Vector Search retrieval (fastest, best recall) ----------------------
+
+/**
+ * Query the Databricks Vector Search index using the workspace SDK. The index is a
+ * Delta Sync index backed by `databricks-gte-large-en`, so we can use `query_text`
+ * directly (the index embeds the query automatically via its configured embedding
+ * endpoint). Falls back to `query_vector` if the caller already has embeddings.
+ *
+ * Returns null if Vector Search is not configured, the index does not exist, or any
+ * error occurs — the caller will cascade to the next retrieval tier.
+ */
+async function retrieveVectorSearch(
+  _appkit: AppKitLike,
+  _req: Request,
+  question: string,
+  programShort: string | null,
+): Promise<KbChunk[] | null> {
+  // Skip if explicitly disabled (empty env var).
+  if (process.env.DATABRICKS_VS_INDEX_NAME === '') return null;
+
+  try {
+    const client = new WorkspaceClient({});
+
+    // Build the query request. Delta Sync indexes with a configured embedding model
+    // accept `query_text`; self-managed embedding indexes need `query_vector`.
+    // We try query_text first since our index uses databricks-gte-large-en.
+    const filtersJson = programShort
+      ? JSON.stringify({ program_short: programShort })
+      : undefined;
+
+    const resp = await withTimeout(
+      client.vectorSearchIndexes.queryIndex({
+        index_name: VS_INDEX_NAME,
+        columns: VS_COLUMNS,
+        query_text: question,
+        num_results: TOP_K,
+        filters_json: filtersJson,
+      }),
+      10000,
+      'vector-search',
+    );
+
+    // Parse the response: result.data_array is string[][] with columns aligned to
+    // manifest.columns. Convert to KbChunk[] using the column order from the manifest.
+    const dataArray = resp.result?.data_array;
+    const manifestCols = resp.manifest?.columns;
+    if (!dataArray || !dataArray.length || !manifestCols) return null;
+
+    // Build a column-name-to-index mapping from the manifest.
+    const colIdx: Record<string, number> = {};
+    for (let i = 0; i < manifestCols.length; i++) {
+      const name = (manifestCols[i] as Record<string, unknown>).name as string | undefined;
+      if (name) colIdx[name] = i;
+    }
+
+    const chunks: KbChunk[] = [];
+    for (const row of dataArray) {
+      const get = (col: string): string => {
+        const idx = colIdx[col];
+        return idx !== undefined && row[idx] != null ? String(row[idx]) : '';
+      };
+      chunks.push({
+        id: Number(get('id')) || 0,
+        program_short: get('program_short'),
+        title: get('title'),
+        chunk_text: get('chunk_text'),
+        source_name: get('source_name'),
+        source_url: get('source_url'),
+      });
+    }
+
+    if (!chunks.length || !chunks.some((c) => c.chunk_text)) return null;
+    console.log(`[apply] Vector Search returned ${chunks.length} chunks`);
+    return chunks;
+  } catch (e) {
+    // Graceful degradation: log and fall through to the next retrieval tier.
+    console.warn('[apply] Vector Search unavailable, falling back:', (e as Error).message);
+    return null;
+  }
+}
+
+// --- Tier 2: In-process semantic retrieval ---------------------------------------------------
 
 // Extract a 1024-dim embedding from the Databricks embedding endpoint response.
 // Shape: { data: [{ embedding: number[] }] } (possibly wrapped under .data).
@@ -228,7 +319,7 @@ async function retrieveSemantic(
   return scored.length ? scored.map((s) => s.chunk) : null;
 }
 
-// --- Lexical retrieval (fallback if embeddings unavailable) --------------------------------
+// --- Tier 3: Lexical retrieval (guaranteed fallback) ----------------------------------------
 async function retrieveLexical(
   appkit: AppKitLike,
   _req: Request,
@@ -275,15 +366,22 @@ async function retrieveLexical(
   }
 }
 
-// Dispatcher: semantic first, lexical as a guaranteed fallback so the route never breaks.
+// Dispatcher: Vector Search -> semantic cosine -> lexical. Three tiers of graceful degradation.
 async function retrieveChunks(
   appkit: AppKitLike,
   req: Request,
   question: string,
   programShort: string | null,
 ): Promise<KbChunk[]> {
+  // Tier 1: Databricks Vector Search (managed ANN index).
+  const vs = await retrieveVectorSearch(appkit, req, question, programShort);
+  if (vs && vs.length) return vs;
+
+  // Tier 2: In-process cosine similarity over precomputed embeddings in Lakebase.
   const semantic = await retrieveSemantic(appkit, req, question, programShort);
   if (semantic && semantic.length) return semantic;
+
+  // Tier 3: Lexical LIKE-based search — always available.
   return retrieveLexical(appkit, req, question, programShort);
 }
 

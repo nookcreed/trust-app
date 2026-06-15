@@ -9,7 +9,7 @@ import {
   Avatar,
   Textarea,
 } from '@databricks/appkit-ui/react';
-import { Send, User, Bot, TrendingUp, Users, ShieldCheck } from 'lucide-react';
+import { Send, User, Bot, TrendingUp, Users, ShieldCheck, RotateCcw } from 'lucide-react';
 
 // TypeScript types mirroring server contract
 interface Profile {
@@ -66,6 +66,7 @@ interface Statement {
 }
 
 interface ChatMessage {
+  id: number;
   role: 'user' | 'assistant';
   content: string;
 }
@@ -79,6 +80,8 @@ const QUICK_START_SCENARIOS = [
   'Lost my job in Georgia, 2 kids',
   'Pregnant in California, low income',
   'Retired in Florida, $1,200/mo',
+  'Single mom in Texas, 3 kids, $1,500/mo',
+  'No income, family of 4 in New York',
 ];
 
 export function BenefitsPage() {
@@ -89,6 +92,15 @@ export function BenefitsPage() {
   const [statement, setStatement] = useState<Statement | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const msgIdRef = useRef(0);
+
+  const resetConversation = () => {
+    setProfile({});
+    setMessages([]);
+    setStatement(null);
+    setInputValue('');
+    msgIdRef.current = 0;
+  };
 
   // Fetch stats on mount
   useEffect(() => {
@@ -110,7 +122,7 @@ export function BenefitsPage() {
   const sendMessage = async (messageText: string) => {
     if (!messageText.trim()) return;
 
-    const userMessage: ChatMessage = { role: 'user', content: messageText };
+    const userMessage: ChatMessage = { id: ++msgIdRef.current, role: 'user', content: messageText };
     setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
@@ -127,7 +139,7 @@ export function BenefitsPage() {
       }
 
       const data = await response.json() as { reply: string; profile: Profile; statement?: Statement };
-      const assistantMessage: ChatMessage = { role: 'assistant', content: data.reply };
+      const assistantMessage: ChatMessage = { id: ++msgIdRef.current, role: 'assistant', content: data.reply };
       setMessages((prev) => [...prev, assistantMessage]);
       setProfile(data.profile);
 
@@ -136,6 +148,7 @@ export function BenefitsPage() {
       }
     } catch (err) {
       const errorMessage: ChatMessage = {
+        id: ++msgIdRef.current,
         role: 'assistant',
         content: 'Sorry, something went wrong. Please try again.',
       };
@@ -232,7 +245,7 @@ export function BenefitsPage() {
           <CardContent className="p-4 space-y-4 max-h-96 overflow-y-auto">
             {messages.map((msg) => (
               <div
-                key={`${msg.role}-${msg.content.slice(0, 30)}-${messages.indexOf(msg)}`}
+                key={msg.id}
                 className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.role === 'assistant' && (
@@ -299,9 +312,22 @@ export function BenefitsPage() {
               <span className="sr-only">Send message</span>
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Press Enter to send, Shift+Enter for new line
-          </p>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-muted-foreground">
+              Press Enter to send, Shift+Enter for new line
+            </p>
+            {messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetConversation}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Start over
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

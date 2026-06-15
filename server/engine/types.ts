@@ -52,6 +52,8 @@ export interface BenefitValues {
   wic_monthly_per_person: number;
   chip_annual_per_child: number;
   nslp_annual_per_child: number;
+  tanf_monthly_base: number;           // ~$400/mo for family of 3 (ACF, varies by state)
+  section8_monthly_base: number;       // ~$1000/mo (HUD, varies by metro area)
 }
 
 export type Confidence =

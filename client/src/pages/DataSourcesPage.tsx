@@ -65,7 +65,8 @@ const TOOL_ICONS = {
   'Unity Catalog': Database,
   'Lakebase (serverless Postgres)': Server,
   'Model Serving (databricks-meta-llama-3-3-70b-instruct)': FileText,
-  'On-behalf-of-user (OBO) access': ShieldCheck,
+  'Model Serving (databricks-gte-large-en)': FileText,
+  'Service Principal (least-privilege)': ShieldCheck,
 };
 
 export function DataSourcesPage() {

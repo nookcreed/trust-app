@@ -55,7 +55,7 @@
     --secondary-foreground: oklch(0.95 0 0);
     --muted: oklch(0.25 0.015 150);
     --muted-foreground: oklch(0.65 0.01 150);
-    --accent: oklch(0.6 0.24 25);
+    --accent: oklch(0.65 0.12 70); /* Warm gold — distinct from destructive in dark mode */
     --accent-foreground: oklch(0.95 0 0);
     --destructive: oklch(0.6 0.24 25);
     --destructive-foreground: oklch(0.95 0 0);
@@ -165,3 +165,26 @@ main a:not([class]) { color: var(--primary); text-underline-offset: 3px; }
 }
 
 * { scrollbar-width: thin; scrollbar-color: oklch(0.78 0.02 120) transparent; }
+
+/* ==========================================================================
+   Print styles — the Statement of Benefits should look clean on paper.
+   ========================================================================== */
+@media print {
+  body {
+    background: white !important;
+    background-image: none !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+  body::before { display: none !important; }
+  nav, footer, .print\\:hidden { display: none !important; }
+  .card-civic {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    break-inside: avoid;
+  }
+  .seal { border-color: #333 !important; }
+  .stmt-total { color: #155C43 !important; }
+  a { color: inherit !important; text-decoration: underline !important; }
+  .reveal { animation: none !important; }
+}

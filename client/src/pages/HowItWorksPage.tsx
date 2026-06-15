@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -7,8 +7,28 @@ import {
   Button,
   Badge,
   Separator,
+  Input,
+  Label,
+  Checkbox,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@databricks/appkit-ui/react';
-import { Bot, TrendingUp, Send, ShieldCheck, Search, Database } from 'lucide-react';
+import {
+  Bot,
+  TrendingUp,
+  Send,
+  ShieldCheck,
+  Search,
+  Database,
+  UserPen,
+  DollarSign,
+  Scale,
+  MessageCircleWarning,
+  Sparkles,
+} from 'lucide-react';
 
 // Profile shape sent to the deterministic engine (mirrors server Profile contract).
 interface Profile {
@@ -61,6 +81,26 @@ const PRESETS: Preset[] = [
   },
 ];
 
+const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN',
+  'IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH',
+  'NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT',
+  'VT','VA','WA','WV','WI','WY',
+];
+
+const STATE_NAMES: Record<string, string> = {
+  AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',
+  CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',
+  FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',
+  IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',
+  MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',
+  MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',
+  NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',
+  OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',
+  SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',
+  WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',
+};
+
 // Narrowing helper so we never put a non-string straight into a template/JSX text node.
 function asStr(v: unknown): string {
   if (typeof v === 'string') return v;
@@ -87,21 +127,39 @@ function confidenceVariant(c: string): 'default' | 'secondary' | 'outline' {
   return 'outline';
 }
 
+function formatCurrency(n: number): string {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}
+
 export function HowItWorksPage() {
   const [results, setResults] = useState<ExplainResult[] | null>(null);
+  const [fplData, setFplData] = useState<{ household_size: number; annual_amount: number } | null>(null);
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const runPreset = async (preset: Preset) => {
+  // Custom form state
+  const [formState, setFormState] = useState<string>('GA');
+  const [formHouseholdSize, setFormHouseholdSize] = useState<number>(3);
+  const [formMonthlyIncome, setFormMonthlyIncome] = useState<number>(2000);
+  const [formHasChildren, setFormHasChildren] = useState(false);
+  const [formHasYoungChildren, setFormHasYoungChildren] = useState(false);
+  const [formIsPregnant, setFormIsPregnant] = useState(false);
+  const [formReceivesTanf, setFormReceivesTanf] = useState(false);
+  const [formReceivesSsi, setFormReceivesSsi] = useState(false);
+  const [formRecentlyLostJob, setFormRecentlyLostJob] = useState(false);
+  const [formIncomeUncertain, setFormIncomeUncertain] = useState(false);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+
+  const runExplain = useCallback(async (profile: Profile, label: string) => {
     setIsLoading(true);
     setError(null);
-    setActiveLabel(preset.label);
+    setActiveLabel(label);
     try {
       const response = await fetch('/api/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile: preset.profile }),
+        body: JSON.stringify({ profile }),
       });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -111,13 +169,40 @@ export function HowItWorksPage() {
         throw new Error('Unexpected response shape');
       }
       setResults(data.results);
+      setFplData(data.fpl);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
       setResults(null);
+      setFplData(null);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  const runPreset = useCallback((preset: Preset) => {
+    setShowCustomForm(false);
+    void runExplain(preset.profile, preset.label);
+  }, [runExplain]);
+
+  const runCustomProfile = useCallback(() => {
+    const profile: Profile = {
+      state: formState,
+      household_size: formHouseholdSize,
+      monthly_income: formMonthlyIncome,
+      has_children: formHasChildren,
+      has_young_children: formHasChildren && formHasYoungChildren,
+      is_pregnant: formIsPregnant,
+      receives_tanf: formReceivesTanf,
+      receives_ssi: formReceivesSsi,
+      recently_lost_job: formRecentlyLostJob,
+      income_uncertain: formIncomeUncertain,
+    };
+    void runExplain(profile, '__custom__');
+  }, [
+    formState, formHouseholdSize, formMonthlyIncome, formHasChildren,
+    formHasYoungChildren, formIsPregnant, formReceivesTanf, formReceivesSsi,
+    formRecentlyLostJob, formIncomeUncertain, runExplain,
+  ]);
 
   const eligibleResults = results?.filter((r) => r.eligible) ?? [];
   const ineligibleResults = results?.filter((r) => !r.eligible) ?? [];
@@ -214,8 +299,8 @@ export function HowItWorksPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Pick an example profile. We POST it to the deterministic engine and show the exact rule
-            that fired for every program — including the ones it rules out, each with a reason.
+            Pick an example profile or build your own. We POST it to the deterministic engine and show
+            the exact rule that fired for every program — including the ones it rules out, each with a reason.
           </p>
           <div className="flex flex-wrap gap-2">
             {PRESETS.map((preset) => (
@@ -223,14 +308,145 @@ export function HowItWorksPage() {
                 key={preset.label}
                 variant={activeLabel === preset.label ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => { void runPreset(preset); }}
+                onClick={() => { runPreset(preset); }}
                 disabled={isLoading}
                 className="text-xs"
               >
                 {preset.label}
               </Button>
             ))}
+            <Button
+              variant={showCustomForm ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowCustomForm((v) => !v)}
+              disabled={isLoading}
+              className="text-xs"
+            >
+              <UserPen className="h-3.5 w-3.5 mr-1" />
+              Try it yourself
+            </Button>
           </div>
+
+          {/* Custom profile form */}
+          {showCustomForm && (
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <UserPen className="h-4 w-4 text-primary" />
+                Build a custom profile
+              </div>
+
+              {/* Row 1: State, Household, Income */}
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="custom-state" className="text-xs font-medium">State</Label>
+                  <Select value={formState} onValueChange={setFormState}>
+                    <SelectTrigger id="custom-state" className="h-9 text-sm">
+                      <SelectValue placeholder="Select state" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {US_STATES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s} — {STATE_NAMES[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="custom-hh" className="text-xs font-medium">Household size</Label>
+                  <Input
+                    id="custom-hh"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={formHouseholdSize}
+                    onChange={(e) => setFormHouseholdSize(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="custom-income" className="text-xs font-medium">Monthly income ($)</Label>
+                  <Input
+                    id="custom-income"
+                    type="number"
+                    min={0}
+                    step={100}
+                    value={formMonthlyIncome}
+                    onChange={(e) => setFormMonthlyIncome(Math.max(0, Number(e.target.value) || 0))}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Checkboxes */}
+              <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={formHasChildren}
+                    onCheckedChange={(v) => {
+                      setFormHasChildren(!!v);
+                      if (!v) setFormHasYoungChildren(false);
+                    }}
+                  />
+                  Has children
+                </label>
+                <label className={`flex items-center gap-2 text-sm cursor-pointer ${!formHasChildren ? 'opacity-40 pointer-events-none' : ''}`}>
+                  <Checkbox
+                    checked={formHasYoungChildren}
+                    onCheckedChange={(v) => setFormHasYoungChildren(!!v)}
+                    disabled={!formHasChildren}
+                  />
+                  Has young children (under 5)
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={formIsPregnant}
+                    onCheckedChange={(v) => setFormIsPregnant(!!v)}
+                  />
+                  Is pregnant
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={formRecentlyLostJob}
+                    onCheckedChange={(v) => setFormRecentlyLostJob(!!v)}
+                  />
+                  Recently lost job
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={formReceivesTanf}
+                    onCheckedChange={(v) => setFormReceivesTanf(!!v)}
+                  />
+                  Receives TANF
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={formReceivesSsi}
+                    onCheckedChange={(v) => setFormReceivesSsi(!!v)}
+                  />
+                  Receives SSI
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={formIncomeUncertain}
+                    onCheckedChange={(v) => setFormIncomeUncertain(!!v)}
+                  />
+                  Income is approximate
+                </label>
+              </div>
+
+              {/* Submit */}
+              <Button
+                onClick={runCustomProfile}
+                disabled={isLoading}
+                size="sm"
+                className="w-full sm:w-auto"
+              >
+                <Search className="h-3.5 w-3.5 mr-1.5" />
+                Check eligibility
+              </Button>
+            </div>
+          )}
 
           {isLoading && (
             <div className="flex gap-1 text-primary">
@@ -246,6 +462,27 @@ export function HowItWorksPage() {
 
           {results && !isLoading && (
             <div className="space-y-6">
+              {/* FPL threshold display */}
+              {fplData && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 flex items-start gap-3">
+                  <DollarSign className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      Federal Poverty Level for a household of {fplData.household_size}
+                    </p>
+                    <p className="text-lg font-bold text-primary stmt-total">
+                      {formatCurrency(fplData.annual_amount)}/year
+                      <span className="text-sm font-normal text-muted-foreground ml-2">
+                        ({formatCurrency(Math.round(fplData.annual_amount / 12))}/month)
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      2024 HHS guideline, contiguous U.S. — most programs use a percentage of this threshold.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Eligible */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -279,6 +516,120 @@ export function HowItWorksPage() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Chatbot comparison callout */}
+      <Card className="card-civic">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Scale className="h-5 w-5 text-primary" />
+            Why deterministic eligibility matters
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            A generic chatbot generates plausible-sounding answers. BenefitsIQ runs auditable rules
+            on your exact profile. Here is the difference for the same question: &ldquo;I lost my job
+            in Georgia. I have two kids and no income. What help can I get?&rdquo;
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Generic chatbot */}
+            <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <MessageCircleWarning className="h-4 w-4 text-muted-foreground" />
+                A generic chatbot
+              </div>
+              <div className="rounded-md bg-muted p-3 space-y-2 text-xs text-muted-foreground italic">
+                <p>
+                  &ldquo;I&apos;m sorry to hear about your situation. You may qualify for several
+                  government assistance programs. I&apos;d recommend looking into SNAP benefits,
+                  Medicaid, and possibly unemployment insurance. Each program has different
+                  eligibility requirements, so I suggest contacting your local Department of Family
+                  and Children Services or visiting benefits.gov for more details. You might also
+                  want to check with local nonprofits in your area.&rdquo;
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="text-[10px]">Vague</Badge>
+                  <span className="text-xs text-muted-foreground">&ldquo;You may qualify&rdquo;</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="text-[10px]">No amounts</Badge>
+                  <span className="text-xs text-muted-foreground">No dollar estimates</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="text-[10px]">Deflects</Badge>
+                  <span className="text-xs text-muted-foreground">&ldquo;Contact your local office&rdquo;</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="text-[10px]">No citations</Badge>
+                  <span className="text-xs text-muted-foreground">Could be hallucinated</span>
+                </div>
+              </div>
+            </div>
+
+            {/* BenefitsIQ */}
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Sparkles className="h-4 w-4 text-primary" />
+                BenefitsIQ
+              </div>
+              <div className="rounded-md bg-card p-3 space-y-2 text-xs text-foreground">
+                <p className="font-semibold">
+                  <span className="text-success">✓</span> SNAP: Likely eligible.
+                  <span className="text-primary font-bold ml-1">$7,692/year.</span>
+                </p>
+                <p className="text-muted-foreground">
+                  Household of 3, $0 gross monthly income is under the $2,311 limit (130% FPL).
+                  Categorical: recently lost job.
+                </p>
+                <Separator className="my-1" />
+                <p className="font-semibold">
+                  <span className="text-success">✓</span> Medicaid: Likely eligible.
+                </p>
+                <p className="text-muted-foreground">
+                  Income at 0% of FPL, below 138% threshold for GA expansion.
+                </p>
+                <Separator className="my-1" />
+                <p className="font-semibold">
+                  <span className="text-muted-foreground">✕</span> WIC: Not eligible.
+                </p>
+                <p className="text-muted-foreground">
+                  Requires pregnancy, infant, or child under 5 — no qualifying member in profile.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="default" className="text-[10px]">Specific</Badge>
+                  <span className="text-xs text-foreground">&ldquo;Likely eligible&rdquo; with confidence</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="default" className="text-[10px]">Dollar values</Badge>
+                  <span className="text-xs text-foreground">Estimated $7,692/year for SNAP</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="default" className="text-[10px]">Shows its work</Badge>
+                  <span className="text-xs text-foreground">Income vs. threshold, rule that fired</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="default" className="text-[10px]">Rules OUT too</Badge>
+                  <span className="text-xs text-foreground">WIC ineligible with a specific reason</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-muted/60 p-3 flex items-start gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              <strong>The creative insight:</strong> Most AI benefit tools try to make the LLM smarter.
+              BenefitsIQ makes it irrelevant for the critical decision. The model handles language; a
+              deterministic engine handles eligibility. This means <em>zero hallucinated benefits</em>,
+              reproducible results, and full auditability — exactly what a government system requires.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

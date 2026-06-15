@@ -22,6 +22,8 @@ export const DEFAULT_BENEFIT_VALUES: BenefitValues = {
   wic_monthly_per_person: 50,
   chip_annual_per_child: 3600,
   nslp_annual_per_child: 900,
+  tanf_monthly_base: 400,       // ACF TANF avg ~$400/mo for family of 3 (states vary widely)
+  section8_monthly_base: 1000,  // HUD HCV avg ~$1,000/mo (varies enormously by metro FMR)
 };
 
 // SNAP benefit formula parameters (federal, simplified). Real SNAP reduces the maximum
@@ -46,6 +48,29 @@ function snapAnnualValue(p: Profile, values: BenefitValues): number {
   const net = Math.max(0, gross * (1 - SNAP_EARNED_INCOME_DEDUCTION) - SNAP_STANDARD_DEDUCTION);
   const monthly = Math.max(SNAP_MIN_MONTHLY, maxMonthly - SNAP_BENEFIT_REDUCTION_RATE * net);
   return Math.round(Math.min(maxMonthly, monthly)) * 12;
+}
+
+// TANF value estimate: base monthly grant scaled by household size. Real TANF grants
+// vary wildly by state ($170/mo in MS to $770/mo in NH for a family of 3), but the
+// ACF national average is ~$400/mo for a family of 3. We scale modestly for larger
+// families: +$80/mo per additional person (roughly 20% of base per additional child).
+// Source: ACF TANF Financial Data, FY 2023 (https://www.acf.hhs.gov/ofa/data)
+function tanfAnnualValue(p: Profile, values: BenefitValues): number {
+  const size = p.household_size || 3;
+  const base = values.tanf_monthly_base;
+  const additionalMembers = Math.max(0, size - 3);
+  const monthly = base + additionalMembers * Math.round(base * 0.2);
+  return monthly * 12;
+}
+
+// Section 8 / Housing Choice Voucher value estimate: covers the difference between
+// 30% of tenant income and the local Fair Market Rent (FMR). We approximate as a
+// flat ~$1,000/mo since the subsidy is per housing unit, not per person. The actual
+// amount depends on local FMR and tenant income — it ranges from $600/mo in rural
+// areas to $2,000+/mo in high-cost metros.
+// Source: HUD Housing Choice Voucher Fact Sheet (https://www.hud.gov/topics/housing_choice_voucher_program_section_8)
+function section8AnnualValue(_p: Profile, values: BenefitValues): number {
+  return values.section8_monthly_base * 12;
 }
 
 function edgeCaseNotes(p: Profile, shortName: string): string | null {
@@ -141,6 +166,8 @@ export function evaluateProgram(
     return make(false, 'unlikely', 'WIC is for pregnant women and children under 5 — neither indicated.');
   if (sn === 'NSLP' && !profile.has_children)
     return make(false, 'unlikely', 'NSLP is for school-age children (K-12) — no children indicated in household.');
+  if (sn === 'TANF' && !profile.has_children)
+    return make(false, 'unlikely', 'TANF is for families with dependent children — no children indicated in household.');
 
   if (!rules.length)
     return make(false, 'requires_verification', 'No eligibility rules found for this state.');
@@ -184,6 +211,10 @@ export function evaluateProgram(
     annualValue = values.wic_monthly_per_person * participants * 12;
   } else if (eligible && sn === 'NSLP')
     annualValue = values.nslp_annual_per_child * Math.max(1, (profile.household_size || 2) - 1);
+  else if (eligible && sn === 'TANF')
+    annualValue = tanfAnnualValue(profile, values);
+  else if (eligible && sn === 'SECTION8')
+    annualValue = section8AnnualValue(profile, values);
 
   return make(eligible, confidence, reason, annualValue, notes);
 }

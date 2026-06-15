@@ -184,8 +184,8 @@ export function setupCatalogRoute(appkit: AppKitLike) {
             role: 'Powers the RAG "How to apply" feature (cosine search over apply_kb)',
           },
           {
-            name: 'On-behalf-of-user (OBO) access',
-            description: 'All data reads use the signed-in user\'s credentials — no service principal access to public tables',
+            name: 'Service Principal (least-privilege)',
+            description: 'All data reads run as the app service principal with SELECT-only grants on synced tables — no per-user OAuth consent required',
             role: 'Security and data governance',
           },
         ];

@@ -6,3 +6,5 @@ env:
     value: databricks-meta-llama-3-3-70b-instruct
   - name: DATABRICKS_EMBEDDING_ENDPOINT_NAME
     value: databricks-gte-large-en
+  - name: DATABRICKS_VS_INDEX_NAME
+    value: benefitsiq.app.apply_kb_vs_index

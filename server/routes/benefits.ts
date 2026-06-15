@@ -27,10 +27,13 @@ const SOURCE: Record<string, { agency: string; date: string; url: string }> = {
   WIC: { agency: 'USDA FNS', date: '2024', url: 'https://www.fns.usda.gov/wic' },
   LIHEAP: { agency: 'HHS OCS', date: 'FY2024', url: 'https://www.acf.hhs.gov/ocs/programs/liheap' },
   NSLP: { agency: 'USDA FNS', date: 'SY24-25', url: 'https://www.fns.usda.gov/nslp' },
+  TANF: { agency: 'HHS ACF', date: 'FY2024', url: 'https://www.acf.hhs.gov/ofa/programs/tanf' },
+  SECTION8: { agency: 'HUD', date: '2024', url: 'https://www.hud.gov/topics/housing_choice_voucher_program_section_8' },
 };
 const FRIENDLY: Record<string, string> = {
   SNAP: 'Food Assistance', MEDICAID: 'Medicaid', CHIP: "Children's Health",
   WIC: 'Nutrition (WIC)', LIHEAP: 'Utility Relief', NSLP: 'School Meals',
+  TANF: 'Cash Assistance (TANF)', SECTION8: 'Housing Voucher (Section 8)',
 };
 // Official "where to apply" links per program (used for per-program next steps).
 const APPLY_URL: Record<string, string> = {
@@ -40,6 +43,8 @@ const APPLY_URL: Record<string, string> = {
   WIC: 'https://www.fns.usda.gov/wic/wic-how-apply',
   LIHEAP: 'https://www.acf.hhs.gov/ocs/programs/liheap/program-and-services',
   NSLP: 'https://www.fns.usda.gov/nslp/applying-free-and-reduced-price-school-meals',
+  TANF: 'https://www.acf.hhs.gov/ofa/map/about/help-families',
+  SECTION8: 'https://www.hud.gov/topics/housing_choice_voucher_program_section_8',
 };
 
 function num(v: unknown): number | null {
@@ -78,6 +83,8 @@ function buildBenefitValues(rows: Record<string, unknown>[]): BenefitValues {
     wic_monthly_per_person: DEFAULT_BENEFIT_VALUES.wic_monthly_per_person,
     chip_annual_per_child: DEFAULT_BENEFIT_VALUES.chip_annual_per_child,
     nslp_annual_per_child: DEFAULT_BENEFIT_VALUES.nslp_annual_per_child,
+    tanf_monthly_base: DEFAULT_BENEFIT_VALUES.tanf_monthly_base,
+    section8_monthly_base: DEFAULT_BENEFIT_VALUES.section8_monthly_base,
   };
   for (const row of rows) {
     const program = asStr(row.program_short).toUpperCase();
@@ -94,6 +101,10 @@ function buildBenefitValues(rows: Record<string, unknown>[]): BenefitValues {
       values.chip_annual_per_child = value;
     } else if (program === 'NSLP' && key === 'per_child_annual') {
       values.nslp_annual_per_child = value;
+    } else if (program === 'TANF' && key === 'monthly_base') {
+      values.tanf_monthly_base = value;
+    } else if (program === 'SECTION8' && key === 'monthly_base') {
+      values.section8_monthly_base = value;
     }
   }
   return values;

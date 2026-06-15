@@ -19,6 +19,8 @@ const PROGRAMS: Array<{ short: string; label: string }> = [
   { short: 'WIC', label: 'WIC (Nutrition)' },
   { short: 'LIHEAP', label: 'Utility Relief (LIHEAP)' },
   { short: 'NSLP', label: 'School Meals' },
+  { short: 'TANF', label: 'Cash Assistance (TANF)' },
+  { short: 'SECTION8', label: 'Housing Voucher (Section 8)' },
 ];
 
 // Placeholder + example chips, tailored to the selected program (falls back to general).
@@ -83,6 +85,22 @@ const PROGRAM_PROMPTS: Record<string, PromptSet> = {
       'How do I apply for free or reduced-price school meals?',
       'Does my child automatically qualify for school meals?',
       'When can I apply for school meal benefits?',
+    ],
+  },
+  TANF: {
+    placeholder: 'e.g., How do I apply for TANF cash assistance?',
+    examples: [
+      'How do I apply for TANF?',
+      'What documents do I need for TANF?',
+      'How long can I receive TANF benefits?',
+    ],
+  },
+  SECTION8: {
+    placeholder: 'e.g., How do I apply for a Section 8 housing voucher?',
+    examples: [
+      'How do I apply for Section 8?',
+      'How long is the Section 8 waiting list?',
+      'What documents does Section 8 require?',
     ],
   },
 };
