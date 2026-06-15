@@ -1,0 +1,72 @@
+bundle:
+  name: trustdesk-app
+
+variables:
+  postgres_branch:
+    description: Full Lakebase Postgres branch resource name.
+  postgres_database:
+    description: Full Lakebase Postgres database resource name.
+  postgres_project:
+    description: Full Lakebase Postgres project resource name.
+
+resources:
+  jobs:
+    trustdesk-seed-knowledge:
+      name: trustdesk-seed-knowledge
+      description: >-
+        Seed curated clinical knowledge maps into UC and sync to Lakebase.
+        Facility, PIN code, and NFHS-5 data are already in Lakebase.
+
+      queue:
+        enabled: true
+
+      tags:
+        project: trustdesk
+        data_sources: clinical
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+
+      tasks:
+        - task_key: seed_knowledge
+          description: "Create clinical specialty-equipment knowledge maps in UC"
+          spark_python_task:
+            python_file: ./scripts/seed_knowledge.py
+          environment_key: default
+
+        - task_key: sync_to_lakebase
+          description: "Sync clinical_knowledge to Lakebase"
+          depends_on:
+            - task_key: seed_knowledge
+          spark_python_task:
+            python_file: ./scripts/uc_sync.py
+          environment_key: default
+
+  apps:
+    app:
+      name: "trustdesk-app"
+      description: "Facility Trust Desk — Can a facility actually do what it claims?"
+      source_code_path: ./
+      user_api_scopes:
+        - serving.serving-endpoints
+        - postgres
+
+      resources:
+        - name: postgres
+          postgres:
+            branch: ${var.postgres_branch}
+            database: ${var.postgres_database}
+            permission: CAN_CONNECT_AND_CREATE
+
+targets:
+  default:
+    default: true
+    workspace:
+      host: https://dbc-0c1fa2eb-48a1.cloud.databricks.com
+
+    variables:
+      postgres_branch: projects/trustdesk/branches/production
+      postgres_database: projects/trustdesk/branches/production/databases/databricks-postgres
+      postgres_project: projects/trustdesk

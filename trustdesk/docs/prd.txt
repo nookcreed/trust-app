@@ -1,0 +1,219 @@
+Facility Trust Desk -- Hackathon PRD & Implementation Plan
+
+Databricks AI for Good Hackathon -- Innovation Summit 2026
+Track: Facility Trust Desk -- "Can a facility actually do what it claims?"
+Team: Varun Srinivas
+Date: June 15, 2026
+
+
+THE PROBLEM
+
+10,000 messy healthcare facility records from India. 51 columns of structured fields plus uneven free-text on claimed capabilities, equipment, and services. A non-technical planner needs to extract structure, show evidence, communicate uncertainty honestly, and persist their work.
+
+The data is messy by design:
+  - Sanjivani Hospital is in Kerala but its coordinates place it in the North Atlantic Ocean
+  - Shaurya Hospital lists 2 doctors covering 19 specialties
+  - Dr Jindal's clinic claims pediatrics but the only equipment listed is "Stethoscope"
+
+These are real findings from real data. They ARE the product.
+
+
+THE SOLUTION
+
+A Databricks App with a deterministic trust engine. The LLM handles language (parsing search queries, understanding planner intent). A pure-function engine handles all trust scoring decisions. Zero hallucination by design. Same inputs produce the same trust profile every time.
+
+Architecture:
+
+    Planner searches/asks in plain English
+        |
+    Model Serving (Llama 3.3 70B) extracts intent
+        |
+    Deterministic Trust Engine (pure TypeScript, no I/O)
+        scores 7 dimensions with evidence
+        |
+    Trust Profile Card
+        scores + evidence + flags + uncertainty
+
+
+SUPPLEMENTAL DATASETS
+
+  - India Post PIN Code Directory (165K rows): PIN code to district/state lookup, lat/lon for address verification
+  - NFHS-5 District Health Indicators (706 rows, 109 columns): District-level health burden context
+
+
+THE TRUST ENGINE (CORE DIFFERENTIATOR)
+
+7 deterministic dimensions, each producing: score (0-100), trust level (high/moderate/low/insufficient_data), evidence items, and flags.
+
+  1. Claims vs Evidence (weight: 0.25)
+     Do specialties have matching equipment and procedures?
+     Example: Claims "radiology" -- has CT scanner? Claims "surgery" -- has operation theater?
+
+  2. Staffing Adequacy (weight: 0.15)
+     Doctor-to-specialty ratio, beds-per-doctor.
+     2 doctors covering 19 specialties = red flag.
+
+  3. Location Integrity (weight: 0.15)
+     Are coordinates actually in India? Does the PIN code match the stated state?
+
+  4. Accreditation (weight: 0.15)
+     NABH/ISO/JCI mentions extracted from capability text.
+     Flagged as "claimed but unverifiable from data" -- honest uncertainty.
+
+  5. Digital Footprint (weight: 0.10)
+     Website existence, social media count, engagement metrics, recency of updates.
+
+  6. Data Completeness (weight: 0.10)
+     Percentage of important fields populated vs null.
+
+  7. Internal Consistency (weight: 0.10)
+     Cross-checks: clinic claiming 30 departments? 5-bed capacity but claims ICU?
+     Surgery procedures but no OT? Duplicate specialties?
+
+Composite Score: Weighted average of dimensions with available data. Dimensions without sufficient data are excluded and labeled "insufficient data" -- not scored as zero. This is honest uncertainty communication.
+
+
+DATA PIPELINE
+
+Unity Catalog Tables (catalog: trustdesk, schema: app):
+
+  facilities        10,000 rows   Hackathon dataset     51 cols, JSON array fields parsed
+  pincode_directory  165,000 rows  India Post            pincode, district, state, lat/lon
+  nfhs5_districts    706 rows      NFHS-5                15-20 key health burden indicators
+  clinical_knowledge ~200 rows     Curated               specialty -> required equipment/procedures
+
+App-Schema Tables (Lakebase, created at runtime):
+  planner_notes       Facility annotations with dimension, note text, and decision
+  assessment_events   Impact logging (facilities assessed, flags raised)
+
+Sync: SNAPSHOT from UC Delta to Lakebase serverless Postgres for sub-second reads.
+
+
+SERVER API ROUTES
+
+  GET  /api/facilities                  Search/browse with text query, state filter, type filter, pagination
+  GET  /api/facilities/:id              Full facility detail with parsed JSON arrays
+  POST /api/trust-profile               Run trust engine on one facility, return full profile
+  POST /api/trust-profile/batch         Batch profiles (up to 10) for comparison
+  POST /api/chat                        LLM extracts intent, engine answers deterministically
+  GET  /api/stats                       Aggregate dashboard metrics
+  GET  /api/data-catalog                UC table metadata, row counts, source provenance
+  GET  /api/district-context/:st/:dist  NFHS-5 health indicators for a facility's area
+  POST /api/planner-notes               Create a planner annotation
+  GET  /api/planner-notes/:facilityId   Get all notes for a facility
+
+Chat: The LLM extracts structured intent (search/filter/question). It NEVER assesses trust or generates health claims. The deterministic engine handles all scoring.
+
+
+CLIENT PAGES
+
+1. Explorer (/) -- Main Experience
+   Problem framing hero: "10,000 facilities claim capabilities. Which claims hold up?"
+   Chat input with quick-start prompts.
+   Search results as cards with mini trust gauges and flag counts.
+   Click to expand trust profile.
+
+2. Facility Detail (/facility/:id)
+   Large trust gauge with overall score.
+   Seven dimension bars, each expandable to evidence items.
+   Each evidence item: claim + finding + supports (green/red) + data source.
+   Flags section, district health context, planner notes panel.
+
+3. How It Works (/how-it-works)
+   Architecture diagram. Live engine demo. Chatbot comparison card.
+
+4. Data Catalog (/data)
+   UC tables with live row counts. Source provenance. Data quality summary.
+
+
+DEMO STRATEGY
+
+Beat 1 -- The Problem (30s):
+  "10,000 facilities. How do you know which claims hold up?"
+
+Beat 2 -- The Catch (60s):
+  Search Kerala hospitals. Click Sanjivani. Location Integrity is RED --
+  coordinates are in the North Atlantic, not Kerala. Real data, real finding.
+
+Beat 3 -- The Deep Dive (90s):
+  Open Shaurya Hospital. Staffing: RED FLAG -- 2 doctors, 19 specialties.
+  Evidence items: "Claims cardiology -- has ECG machine (supported)" vs
+  "Claims radiology -- no CT scanner found (unsupported)."
+
+Beat 4 -- Determinism Proof (60s):
+  How It Works page. Same input, same output, every time.
+
+Beat 5 -- Context Layer (45s):
+  NFHS-5 data: "This facility is in a district where only 40% of deliveries
+  happen in institutions."
+
+Beat 6 -- Planner Workflow (45s):
+  Add a note, mark dimension as flagged. Notes persist in Lakebase.
+
+Beat 7 -- Data Transparency (30s):
+  Data Catalog: 10,000 facilities, 165,000 PIN codes, 706 districts.
+
+Key lines for judges:
+  "The model understands language. The engine decides trust. They never cross."
+  "When we say 'insufficient data,' we mean it."
+  "Every flag came from deterministic rules on real data fields."
+
+
+JUDGING CRITERIA COVERAGE
+
+(a) Business Applicability:
+    Trust verification for healthcare planning. Patient safety impact.
+    10K facilities, real findings, planner workflow with persistent notes.
+
+(b) Data Relevance:
+    All 3 datasets used. Facility records (10K) + PIN codes (165K) for
+    address verification + NFHS-5 (706 districts) for health context.
+    Clinical knowledge maps for specialty-equipment cross-referencing.
+
+(c) Creativity:
+    Deterministic trust engine with 7 scored dimensions. LLM never touches
+    trust decisions. Evidence-based scoring with honest uncertainty.
+
+(d) Thoroughness:
+    7 dimensions, 50+ unit tests, evidence trails, planner notes,
+    district context, data quality transparency.
+
+(e) Well-Architected:
+    Databricks end-to-end (UC, Lakebase, Model Serving, AppKit).
+    Deterministic engine (pure functions, no I/O). Service principal auth.
+
+
+SCOPE CUTS
+
+  - No map visualization
+  - No user authentication
+  - No PDF/CSV export
+  - No Vector Search initially (SQL ILIKE first)
+  - No multi-language support
+  - No automated re-scoring pipeline
+
+
+WORK ITEMS
+
+  WI-1  Project scaffold (databricks apps init, configs)
+  WI-2  Engine types + knowledge maps (types.ts, knowledge.ts, geo.ts)
+  WI-3  Trust engine + tests (trust.ts, 7 dimensions, 50+ tests)
+  WI-4  Data pipeline scripts (5 Python scripts)
+  WI-5  Server routes (server.ts, all route files)
+  WI-6  Client: Layout + Explorer page
+  WI-7  Client: Facility Detail page
+  WI-8  Client: How It Works + Data Catalog
+  WI-9  Deploy + smoke test
+
+Execution: 1 -> 2+4 parallel -> 3 -> 5 -> 6+7+8 parallel -> 9
+
+
+DATABRICKS STACK
+
+  Unity Catalog       4 Delta tables with Change Data Feed
+  Lakebase            Serverless Postgres via SNAPSHOT sync
+  Model Serving       Llama 3.3 70B (chat) + GTE-Large (embeddings, stretch)
+  AppKit              TypeScript + React full-stack framework
+  Service Principal   Least-privilege reads from Lakebase
+  Asset Bundles       databricks.yml for deployment
+  Workspace           dbc-0c1fa2eb-48a1.cloud.databricks.com

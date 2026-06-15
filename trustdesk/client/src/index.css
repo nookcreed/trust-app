@@ -1,0 +1,211 @@
+@import "@databricks/appkit-ui/styles.css";
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.97 0.008 250);
+  --foreground: oklch(0.18 0.02 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.02 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.02 260);
+  --primary: oklch(0.35 0.12 260);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.94 0.005 250);
+  --secondary-foreground: oklch(0.3 0.02 260);
+  --muted: oklch(0.95 0.005 250);
+  --muted-foreground: oklch(0.5 0.015 260);
+  --accent: oklch(0.72 0.16 70);
+  --accent-foreground: oklch(0.2 0.03 260);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --success: oklch(0.5 0.14 155);
+  --success-foreground: oklch(0.98 0 0);
+  --warning: oklch(0.75 0.15 75);
+  --warning-foreground: oklch(0.2 0.02 240);
+  --border: oklch(0.88 0.01 250);
+  --input: oklch(0.88 0.01 250);
+  --ring: oklch(0.35 0.12 260);
+  --chart-1: oklch(0.35 0.12 260);
+  --chart-2: oklch(0.55 0.22 25);
+  --chart-3: oklch(0.5 0.14 155);
+  --chart-4: oklch(0.72 0.16 70);
+  --chart-5: oklch(0.5 0.1 300);
+  --sidebar: oklch(0.97 0.005 250);
+  --sidebar-foreground: oklch(0.18 0.02 260);
+  --sidebar-primary: oklch(0.35 0.12 260);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.94 0.005 250);
+  --sidebar-accent-foreground: oklch(0.3 0.02 260);
+  --sidebar-border: oklch(0.88 0.005 250);
+  --sidebar-ring: oklch(0.35 0.12 260);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.14 0.015 260);
+    --foreground: oklch(0.95 0.005 250);
+    --card: oklch(0.19 0.02 260);
+    --card-foreground: oklch(0.95 0.005 250);
+    --popover: oklch(0.19 0.02 260);
+    --popover-foreground: oklch(0.95 0.005 250);
+    --primary: oklch(0.55 0.14 260);
+    --primary-foreground: oklch(0.98 0 0);
+    --secondary: oklch(0.22 0.015 260);
+    --secondary-foreground: oklch(0.9 0.005 250);
+    --muted: oklch(0.22 0.01 260);
+    --muted-foreground: oklch(0.6 0.01 250);
+    --accent: oklch(0.72 0.16 70);
+    --accent-foreground: oklch(0.18 0.03 260);
+    --destructive: oklch(0.6 0.2 25);
+    --destructive-foreground: oklch(0.98 0 0);
+    --success: oklch(0.55 0.14 155);
+    --success-foreground: oklch(0.98 0 0);
+    --warning: oklch(0.72 0.15 75);
+    --warning-foreground: oklch(0.18 0.02 240);
+    --border: oklch(0.3 0.015 260);
+    --input: oklch(0.3 0.015 260);
+    --ring: oklch(0.55 0.14 260);
+    --chart-1: oklch(0.55 0.14 260);
+    --chart-2: oklch(0.6 0.2 25);
+    --chart-3: oklch(0.55 0.14 155);
+    --chart-4: oklch(0.72 0.16 70);
+    --chart-5: oklch(0.55 0.1 300);
+    --sidebar: oklch(0.16 0.01 260);
+    --sidebar-foreground: oklch(0.95 0.005 250);
+    --sidebar-primary: oklch(0.55 0.14 260);
+    --sidebar-primary-foreground: oklch(0.98 0 0);
+    --sidebar-accent: oklch(0.22 0.015 260);
+    --sidebar-accent-foreground: oklch(0.9 0.005 250);
+    --sidebar-border: oklch(0.3 0.01 260);
+    --sidebar-ring: oklch(0.55 0.14 260);
+  }
+}
+
+@font-face {
+  font-family: 'Display';
+  src: local('Inter'), local('system-ui');
+  font-display: swap;
+}
+
+.font-display { font-family: 'Display', system-ui, sans-serif; }
+
+.trust-gauge {
+  transition: stroke-dashoffset 0.6s ease-out;
+}
+
+.trust-high { color: var(--success); }
+.trust-moderate { color: var(--warning); }
+.trust-low { color: var(--destructive); }
+.trust-insufficient { color: var(--muted-foreground); }
+
+/* ── Print stylesheet ─────────────────────────────────── */
+@media print {
+  /* Force light background */
+  html, body {
+    background: #fff !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide non-report elements */
+  nav,
+  footer,
+  [data-print-hide],
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Full-width content, remove max-width constraints */
+  .max-w-5xl,
+  .max-w-xl {
+    max-width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Remove shadows, lighten borders */
+  .shadow, .shadow-sm, .shadow-md, .shadow-lg, .drop-shadow-sm {
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
+  [class*="border"] {
+    border-color: #e5e7eb !important;
+  }
+
+  /* Cards: avoid page breaks inside */
+  .rounded-lg,
+  .rounded-xl,
+  [class*="Card"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Trust gauge: hide SVG animation, show score number prominently */
+  .trust-gauge {
+    transition: none !important;
+  }
+
+  /* Print header: visible only in print */
+  .print-header {
+    display: block !important;
+  }
+
+  /* Accordion: force all content open in print */
+  [data-state="closed"] > [role="region"],
+  [data-state="closed"] > [data-radix-accordion-content],
+  [data-state="closed"][data-radix-accordion-content] {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Hide accordion chevron toggles in print */
+  [data-radix-accordion-trigger] svg[class*="lucide-chevron"] {
+    display: none !important;
+  }
+
+  /* Tab content: show all tab panels in print */
+  [role="tabpanel"][data-state="inactive"] {
+    display: block !important;
+    opacity: 1 !important;
+  }
+
+  /* Hide the tab navigation bar itself */
+  [role="tablist"] {
+    display: none !important;
+  }
+
+  /* Print-visible tab section headers */
+  .print-section-header {
+    display: block !important;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #374151;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 4px;
+    margin-bottom: 12px;
+    margin-top: 24px;
+  }
+
+  /* Muted backgrounds become white in print */
+  [class*="bg-muted"] {
+    background: #fafafa !important;
+  }
+
+  /* Skeleton placeholders hidden */
+  [class*="Skeleton"],
+  .animate-pulse {
+    display: none !important;
+  }
+
+  /* Page margins */
+  @page {
+    margin: 0.75in;
+    size: letter;
+  }
+}
