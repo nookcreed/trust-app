@@ -140,6 +140,21 @@ export function evaluateProgram(
   fpl: FplRow | null,
   values: BenefitValues = DEFAULT_BENEFIT_VALUES,
 ): EligibilityResult {
+  // ── Defensive input sanitization ──────────────────────────────────
+  // The engine must never crash on bad input. Clamp nonsensical values
+  // to safe defaults so downstream math stays well-defined.
+  const p: Profile = {
+    ...profile,
+    household_size:
+      profile.household_size != null && profile.household_size > 0
+        ? profile.household_size
+        : 1,
+    monthly_income:
+      profile.monthly_income != null && profile.monthly_income < 0
+        ? 0
+        : profile.monthly_income,
+  };
+
   const make = (
     eligible: boolean,
     confidence: Confidence,
@@ -160,32 +175,32 @@ export function evaluateProgram(
   const sn = program.short_name;
 
   // Household composition gates (before income)
-  if (sn === 'CHIP' && !profile.has_children)
+  if (sn === 'CHIP' && !p.has_children)
     return make(false, 'unlikely', 'CHIP covers children only — no children indicated in household.');
-  if (sn === 'WIC' && !(profile.has_young_children || profile.is_pregnant))
+  if (sn === 'WIC' && !(p.has_young_children || p.is_pregnant))
     return make(false, 'unlikely', 'WIC is for pregnant women and children under 5 — neither indicated.');
-  if (sn === 'NSLP' && !profile.has_children)
+  if (sn === 'NSLP' && !p.has_children)
     return make(false, 'unlikely', 'NSLP is for school-age children (K-12) — no children indicated in household.');
-  if (sn === 'TANF' && !profile.has_children)
+  if (sn === 'TANF' && !p.has_children)
     return make(false, 'unlikely', 'TANF is for families with dependent children — no children indicated in household.');
 
   if (!rules.length)
     return make(false, 'requires_verification', 'No eligibility rules found for this state.');
 
-  const householdSize = profile.household_size || 1;
+  const householdSize = p.household_size || 1;
   const rule =
     rules.find((r) => r.household_size === householdSize) ||
     rules.find((r) => r.household_size == null) ||
     rules[0];
 
-  const income = profile.monthly_income;
+  const income = p.monthly_income;
 
-  if (rule.categorical_eligible && (profile.receives_tanf || profile.receives_ssi)) {
+  if (rule.categorical_eligible && (p.receives_tanf || p.receives_ssi)) {
     return make(
       true,
       'likely',
       'Categorically eligible via TANF/SSI — income test does not apply.',
-      sn === 'SNAP' ? snapAnnualValue(profile, values) : null,
+      sn === 'SNAP' ? snapAnnualValue(p, values) : null,
     );
   }
 
@@ -196,25 +211,25 @@ export function evaluateProgram(
     income,
     rule,
     fpl,
-    !!profile.income_uncertain,
+    !!p.income_uncertain,
   );
-  const notes = edgeCaseNotes(profile, sn);
+  const notes = edgeCaseNotes(p, sn);
 
   let annualValue: number | null = null;
-  if (eligible && sn === 'SNAP') annualValue = snapAnnualValue(profile, values);
+  if (eligible && sn === 'SNAP') annualValue = snapAnnualValue(p, values);
   else if (eligible && sn === 'CHIP')
-    annualValue = values.chip_annual_per_child * Math.max(1, (profile.household_size || 2) - 1);
+    annualValue = values.chip_annual_per_child * Math.max(1, (p.household_size || 2) - 1);
   else if (eligible && sn === 'WIC') {
     const participants =
-      (profile.is_pregnant ? 1 : 0) +
-      (profile.has_young_children ? Math.max(1, (profile.household_size || 2) - 1) : 0);
+      (p.is_pregnant ? 1 : 0) +
+      (p.has_young_children ? Math.max(1, (p.household_size || 2) - 1) : 0);
     annualValue = values.wic_monthly_per_person * participants * 12;
   } else if (eligible && sn === 'NSLP')
-    annualValue = values.nslp_annual_per_child * Math.max(1, (profile.household_size || 2) - 1);
+    annualValue = values.nslp_annual_per_child * Math.max(1, (p.household_size || 2) - 1);
   else if (eligible && sn === 'TANF')
-    annualValue = tanfAnnualValue(profile, values);
+    annualValue = tanfAnnualValue(p, values);
   else if (eligible && sn === 'SECTION8')
-    annualValue = section8AnnualValue(profile, values);
+    annualValue = section8AnnualValue(p, values);
 
   return make(eligible, confidence, reason, annualValue, notes);
 }

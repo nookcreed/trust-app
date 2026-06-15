@@ -6,7 +6,7 @@ BenefitsIQ uses real, publicly available federal and Census data to deliver accu
 
 ### 1. Federal Programs (`programs`)
 **Source**: USDA FNS, HHS/CMS, SSA official program documentation  
-**Content**: Catalog of federal assistance programs (SNAP, Medicaid, CHIP, SSI, TANF, WIC, School Meals)  
+**Content**: Catalog of 8 federal assistance programs (SNAP, Medicaid, CHIP, SSI, TANF, Section 8, WIC, School Meals)  
 **Fields**: Program name, category (nutrition/health/income), administering agency, description  
 **Provenance**: Curated from official agency websites and program manuals
 
@@ -55,6 +55,24 @@ python3 scripts/acs_sync.py    # Sync to Lakebase Postgres
 
 **Reference**: https://data.census.gov
 
+### 6. Benefit Dollar Values (`benefit_values`)
+**Source**: USDA FNS (SNAP allotments), ACF TANF Financial Data, HUD HCV Fact Sheet  
+**Content**: Dollar amounts used by the deterministic engine to estimate annual benefit values per program — SNAP max monthly allotments by household size, TANF base grants, Section 8 voucher averages, WIC/CHIP/NSLP per-person values  
+**Fields**: Program key, household size (where applicable), monthly/annual dollar amount  
+**Provenance**: Federal agency published benefit schedules (FY 2024). The engine falls back to hardcoded `DEFAULT_BENEFIT_VALUES` when this table is absent.
+
+### 7. Application Knowledge Base (`apply_kb`)
+**Source**: Official state agency application portals, USDA FNS How to Apply guides, HHS/CMS enrollment documentation  
+**Content**: Per-program, per-state application instructions — URLs, required documents, processing timelines, and tips  
+**Fields**: Program short name, state, apply URL, instructions, required documents, estimated processing days  
+**Provenance**: Curated from official agency "How to Apply" pages
+
+### 8. Application Knowledge Base Embeddings (`apply_kb_emb`)
+**Source**: Computed from `apply_kb` content using Databricks Model Serving  
+**Content**: Vector embeddings of application knowledge base entries for semantic retrieval during chat  
+**Fields**: Row ID (foreign key to `apply_kb`), embedding vector  
+**Provenance**: Generated via embedding model on Model Serving; used by the RAG pipeline to surface relevant application guidance
+
 ## Data Pipeline
 
 ```
@@ -63,16 +81,20 @@ python3 scripts/acs_sync.py    # Sync to Lakebase Postgres
 ├──────────────────────────────────────────┤
 │ • Curated SQLite DB (federal rules)      │
 │ • U.S. Census API (ACS state stats)      │
+│ • Agency application portals (apply_kb)  │
 └──────────────────────────────────────────┘
                   ↓
 ┌──────────────────────────────────────────┐
 │ Unity Catalog (Delta Tables)             │
 ├──────────────────────────────────────────┤
-│ benefitsiq.app.programs                  │
+│ benefitsiq.app.programs        (8 pgms) │
 │ benefitsiq.app.eligibility_rules         │
 │ benefitsiq.app.fpl_thresholds            │
 │ benefitsiq.app.cohort_stats              │
 │ benefitsiq.app.acs_state_stats           │
+│ benefitsiq.app.benefit_values            │
+│ benefitsiq.app.apply_kb                  │
+│ benefitsiq.app.apply_kb_emb              │
 │ (delta.enableChangeDataFeed = true)      │
 └──────────────────────────────────────────┘
                   ↓
@@ -84,10 +106,10 @@ python3 scripts/acs_sync.py    # Sync to Lakebase Postgres
 └──────────────────────────────────────────┘
                   ↓
 ┌──────────────────────────────────────────┐
-│ AppKit App (Python Backend)              │
+│ AppKit App (TypeScript Backend)          │
 ├──────────────────────────────────────────┤
-│ On-behalf-of-user Lakebase connection    │
-│ SQLAlchemy ORM reads synced tables       │
+│ Service-principal Lakebase connection    │
+│ AppKit SDK reads synced tables           │
 └──────────────────────────────────────────┘
 ```
 
@@ -106,6 +128,6 @@ All data is publicly available and reproducible. The pipeline scripts are versio
 
 ---
 
-**Last Updated**: 2026-06-13  
+**Last Updated**: 2026-06-14  
 **Hackathon**: Databricks Innovation Summit 2026  
 **Team**: BenefitsIQ

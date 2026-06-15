@@ -373,6 +373,33 @@ describe('Negative and edge inputs', () => {
     expect(r.eligible).toBe(true);
     expect(r.estimated_annual_value).toBe(3600);
   });
+
+  it('sanitizes household_size=0 to 1 via defensive guard (does not crash)', () => {
+    // Verify the input sanitization path: household_size=0 is treated as 1
+    // at the top of evaluateProgram(), not just via || fallbacks deep in the code.
+    const p: Profile = { state: 'GA', household_size: 0, monthly_income: 500 };
+    const r = evaluateProgram(p, prog('SNAP'), [
+      rule({ household_size: 1, max_gross_monthly: 1500 }),
+      rule({ household_size: 2, max_gross_monthly: 2000 }),
+    ], null);
+    expect(r.eligible).toBe(true);
+    // Should match the household_size=1 rule, not the household_size=2 rule
+    expect(r.reason).toContain('$1,500');
+  });
+
+  it('sanitizes monthly_income=-100 to 0 via defensive guard (does not crash)', () => {
+    // Verify the input sanitization path: negative income is clamped to 0
+    // at the top of evaluateProgram(), producing the same result as income=0.
+    const pNeg: Profile = { state: 'GA', household_size: 1, monthly_income: -100 };
+    const pZero: Profile = { state: 'GA', household_size: 1, monthly_income: 0 };
+    const rules = [rule({ max_gross_monthly: 1500 })];
+    const rNeg = evaluateProgram(pNeg, prog('SNAP'), rules, null);
+    const rZero = evaluateProgram(pZero, prog('SNAP'), rules, null);
+    // Both should produce identical results — negative income is treated as 0
+    expect(rNeg.eligible).toBe(true);
+    expect(rNeg.estimated_annual_value).toEqual(rZero.estimated_annual_value);
+    expect(rNeg.reason).toEqual(rZero.reason);
+  });
 });
 
 // ---------------------------------------------------------------------------

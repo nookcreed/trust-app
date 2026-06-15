@@ -10,6 +10,83 @@ variables:
     description: Full Lakebase Postgres project resource name. Obtain by running `databricks postgres list-projects`, select the desired item from the output array and use its .name value.
 
 resources:
+  # ── Scheduled Data Refresh ──────────────────────────────────────────
+  # Federal benefit thresholds change on known annual cadences:
+  #
+  #   FPL (Federal Poverty Level)
+  #     HHS publishes updated guidelines every January.
+  #     Cascades to Medicaid, CHIP, ACA subsidies, LIHEAP, and more.
+  #
+  #   SNAP allotments
+  #     USDA adjusts for COLA every October (new federal fiscal year).
+  #
+  #   State Medicaid / CHIP thresholds
+  #     Vary by state; most update annually, some lag by a quarter.
+  #
+  # This job runs January 15 — two weeks after the typical HHS FPL
+  # publication date — to refresh all UC tables and rebuild the
+  # how-to-apply knowledge base.  A second manual run in October
+  # can capture the SNAP COLA adjustment.
+  #
+  # Pipeline: uc_load.py  →  build_apply_kb.py  →  embed_apply_kb.py  →  uc_sync.py
+  # ─────────────────────────────────────────────────────────────────────
+  jobs:
+    benefitsiq-data-refresh:
+      name: benefitsiq-data-refresh
+      description: >-
+        Annual refresh of FPL thresholds, SNAP allotments, and benefit
+        eligibility data into Unity Catalog and Lakebase.
+
+      # 06:00 ET on January 15 each year
+      schedule:
+        quartz_cron_expression: "0 0 6 15 1 ? *"
+        timezone_id: "America/New_York"
+
+      queue:
+        enabled: true
+
+      tags:
+        project: benefitsiq
+        cadence: annual
+        data_sources: "fpl,snap,medicaid,chip"
+
+      # Serverless — no persistent cluster for a job that runs ~1-2x/year.
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+
+      tasks:
+        - task_key: load_uc_tables
+          description: "Load curated benefit data from SQLite into Unity Catalog Delta tables"
+          spark_python_task:
+            python_file: ./scripts/uc_load.py
+          environment_key: default
+
+        - task_key: build_apply_kb
+          description: "Build the how-to-apply knowledge base from benefit program metadata"
+          depends_on:
+            - task_key: load_uc_tables
+          spark_python_task:
+            python_file: ./scripts/build_apply_kb.py
+          environment_key: default
+
+        - task_key: embed_apply_kb
+          description: "Generate embeddings for the apply knowledge base (vector search)"
+          depends_on:
+            - task_key: build_apply_kb
+          spark_python_task:
+            python_file: ./scripts/embed_apply_kb.py
+          environment_key: default
+
+        - task_key: sync_to_lakebase
+          description: "Sync refreshed UC Delta tables into Lakebase for low-latency serving"
+          depends_on:
+            - task_key: embed_apply_kb
+          spark_python_task:
+            python_file: ./scripts/uc_sync.py
+          environment_key: default
+
   apps:
     app:
       name: "benefitsiq-app"

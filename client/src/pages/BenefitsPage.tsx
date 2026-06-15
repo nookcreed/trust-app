@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -8,8 +8,13 @@ import {
   Separator,
   Avatar,
   Textarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@databricks/appkit-ui/react';
-import { Send, User, Bot, TrendingUp, Users, ShieldCheck, RotateCcw } from 'lucide-react';
+import { Send, User, Bot, TrendingUp, Users, ShieldCheck, RotateCcw, MapPin } from 'lucide-react';
 
 // TypeScript types mirroring server contract
 interface Profile {
@@ -86,6 +91,69 @@ const QUICK_START_SCENARIOS = [
   'Single mom in Texas, 3 kids, $1,500/mo',
   'No income, family of 4 in New York',
 ];
+
+// Neighboring / comparison states for the "What if you lived in..." feature.
+const NEIGHBOR_STATES: Record<string, { code: string; name: string }[]> = {
+  GA: [
+    { code: 'FL', name: 'Florida' }, { code: 'AL', name: 'Alabama' },
+    { code: 'TN', name: 'Tennessee' }, { code: 'SC', name: 'South Carolina' },
+    { code: 'NC', name: 'North Carolina' },
+  ],
+  FL: [
+    { code: 'GA', name: 'Georgia' }, { code: 'AL', name: 'Alabama' },
+    { code: 'SC', name: 'South Carolina' }, { code: 'TX', name: 'Texas' },
+  ],
+  TX: [
+    { code: 'LA', name: 'Louisiana' }, { code: 'OK', name: 'Oklahoma' },
+    { code: 'NM', name: 'New Mexico' }, { code: 'AR', name: 'Arkansas' },
+    { code: 'CA', name: 'California' },
+  ],
+  CA: [
+    { code: 'AZ', name: 'Arizona' }, { code: 'NV', name: 'Nevada' },
+    { code: 'OR', name: 'Oregon' }, { code: 'WA', name: 'Washington' },
+    { code: 'TX', name: 'Texas' },
+  ],
+  NY: [
+    { code: 'NJ', name: 'New Jersey' }, { code: 'CT', name: 'Connecticut' },
+    { code: 'PA', name: 'Pennsylvania' }, { code: 'MA', name: 'Massachusetts' },
+  ],
+  PA: [
+    { code: 'NJ', name: 'New Jersey' }, { code: 'NY', name: 'New York' },
+    { code: 'OH', name: 'Ohio' }, { code: 'DE', name: 'Delaware' },
+    { code: 'MD', name: 'Maryland' },
+  ],
+  IL: [
+    { code: 'IN', name: 'Indiana' }, { code: 'WI', name: 'Wisconsin' },
+    { code: 'MO', name: 'Missouri' }, { code: 'IA', name: 'Iowa' },
+    { code: 'OH', name: 'Ohio' },
+  ],
+  OH: [
+    { code: 'PA', name: 'Pennsylvania' }, { code: 'IN', name: 'Indiana' },
+    { code: 'MI', name: 'Michigan' }, { code: 'KY', name: 'Kentucky' },
+    { code: 'WV', name: 'West Virginia' },
+  ],
+  NC: [
+    { code: 'SC', name: 'South Carolina' }, { code: 'VA', name: 'Virginia' },
+    { code: 'TN', name: 'Tennessee' }, { code: 'GA', name: 'Georgia' },
+  ],
+  MI: [
+    { code: 'OH', name: 'Ohio' }, { code: 'IN', name: 'Indiana' },
+    { code: 'WI', name: 'Wisconsin' }, { code: 'IL', name: 'Illinois' },
+  ],
+};
+
+const DEFAULT_COMPARISON_STATES: { code: string; name: string }[] = [
+  { code: 'CA', name: 'California' }, { code: 'TX', name: 'Texas' },
+  { code: 'NY', name: 'New York' }, { code: 'FL', name: 'Florida' },
+  { code: 'IL', name: 'Illinois' },
+];
+
+function getComparisonStates(state: string | null): { code: string; name: string }[] {
+  if (!state) return [];
+  const neighbors = NEIGHBOR_STATES[state.toUpperCase()];
+  if (neighbors) return neighbors;
+  return DEFAULT_COMPARISON_STATES.filter((s) => s.code !== state.toUpperCase());
+}
 
 export function BenefitsPage() {
   const [profile, setProfile] = useState<Profile>({});
@@ -480,6 +548,9 @@ function StatementCard({ statement }: { statement: Statement }) {
           </div>
         )}
 
+        {/* Multi-state comparison */}
+        <StateComparison statement={statement} />
+
         <Separator />
 
         {/* Disclaimer */}
@@ -494,5 +565,91 @@ function StatementCard({ statement }: { statement: Statement }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function StateComparison({ statement }: { statement: Statement }) {
+  const [compState, setCompState] = useState<string | null>(null);
+  const [compResult, setCompResult] = useState<{ total: number; count: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const options = getComparisonStates(statement.state);
+
+  const fetchComparison = useCallback(async (stateCode: string) => {
+    setLoading(true);
+    setCompResult(null);
+    try {
+      const res = await fetch('/api/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile: {
+            state: stateCode,
+            household_size: statement.household_size,
+            monthly_income: statement.monthly_income,
+            recently_lost_job: statement.recently_lost_job,
+          },
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json() as { statement?: Statement };
+      if (data.statement) {
+        setCompResult({ total: data.statement.total, count: data.statement.programs.length });
+      }
+    } catch {
+      // Silently ignore — comparison is a bonus feature
+    } finally {
+      setLoading(false);
+    }
+  }, [statement.household_size, statement.monthly_income, statement.recently_lost_job]);
+
+  const handleStateChange = useCallback((value: string) => {
+    setCompState(value);
+    void fetchComparison(value);
+  }, [fetchComparison]);
+
+  if (options.length === 0) return null;
+
+  const delta = compResult ? compResult.total - statement.total : null;
+  const selectedName = options.find((o) => o.code === compState)?.name ?? compState;
+
+  return (
+    <div className="bg-muted/30 border border-border/50 rounded-lg px-4 py-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">What if you lived in...</span>
+        <Select value={compState ?? ''} onValueChange={handleStateChange}>
+          <SelectTrigger className="h-7 w-36 text-xs" aria-label="Compare another state">
+            <SelectValue placeholder="Choose state" />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((s) => (
+              <SelectItem key={s.code} value={s.code} className="text-xs">
+                {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {loading && (
+        <p className="text-xs text-muted-foreground">Checking...</p>
+      )}
+      {compResult && !loading && (
+        <p className="text-xs text-muted-foreground">
+          In <span className="font-medium text-foreground">{selectedName}</span>, you&apos;d
+          qualify for{' '}
+          <span className="font-medium text-foreground">{compResult.count} programs</span> worth{' '}
+          <span className="font-medium text-foreground">${compResult.total.toLocaleString()}/yr</span>
+          {delta !== null && delta !== 0 && (
+            <Badge
+              variant={delta > 0 ? 'default' : 'secondary'}
+              className="ml-1.5 text-[10px] px-1.5 py-0"
+            >
+              {delta > 0 ? '+' : ''}${delta.toLocaleString()}
+            </Badge>
+          )}
+        </p>
+      )}
+    </div>
   );
 }
