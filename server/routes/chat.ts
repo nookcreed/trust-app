@@ -16,7 +16,7 @@ Return ONLY a JSON object (no prose, no markdown fences) with this exact shape:
   "profile": {
     "state": "2-letter US state code or null",
     "household_size": integer or null,
-    "monthly_income": number (monthly gross household $; 0 if no income) or null,
+    "monthly_income": number (monthly gross household $) or null — set ONLY if the user explicitly states a dollar amount or says they have zero/no income. Do NOT infer income from employment status (e.g., "lost my job" does NOT mean income is $0 — they may have savings, a partner's income, or severance). If unsure, leave null and ask.",
     "income_uncertain": boolean,
     "recently_lost_job": boolean,
     "has_children": boolean,
