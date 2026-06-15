@@ -245,6 +245,7 @@ export function ApplyHelpPage() {
           <div className="flex gap-2">
             <Textarea
               placeholder={prompts.placeholder}
+              aria-label="Ask a question about applying for benefits"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}

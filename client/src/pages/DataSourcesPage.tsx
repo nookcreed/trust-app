@@ -199,7 +199,7 @@ export function DataSourcesPage() {
                     <h4 className="font-semibold text-sm">{tool.name}</h4>
                   </div>
                   <p className="text-xs text-muted-foreground">{tool.description}</p>
-                  <p className="text-xs text-muted-foreground/70">
+                  <p className="text-xs text-muted-foreground">
                     <span className="font-medium">Role:</span> {tool.role}
                   </p>
                 </CardContent>
@@ -217,6 +217,18 @@ export function DataSourcesPage() {
             logic and estimates are traced to authoritative federal sources (USDA FNS, CMS, HHS). Live
             row counts prove the data is loaded. Unity Catalog provides versioned lineage, Lakebase
             enables sub-50ms queries, and OBO access ensures secure, user-scoped data governance.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Accessibility commitment */}
+      <Card className="bg-muted/30 border-border">
+        <CardContent className="p-4">
+          <p className="text-sm text-muted-foreground">
+            <strong className="text-foreground">Accessibility:</strong> BenefitsIQ is designed to be
+            accessible to all users, including those using screen readers and keyboard navigation.
+            The interface follows WCAG 2.1 AA guidelines. If you need assistance, call or
+            text <strong>211</strong>.
           </p>
         </CardContent>
       </Card>

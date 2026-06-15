@@ -1,41 +1,11 @@
 // BenefitsIQ "Explain" route: full deterministic eligibility trace for EVERY program
 // (eligible and ineligible) so judges can see the engine ruling things in AND out
 // with an exact reason. The LLM does language; this engine decides eligibility.
-//
-// Isolated by design: helpers (num/asStr/rulesFor/getFpl) are re-implemented locally
-// so we don't import non-exported symbols from benefits.ts. We only import the public
-// AppKitLike interface, the pure evaluateProgram function, and shared types.
 
 import { evaluateProgram, DEFAULT_BENEFIT_VALUES } from '../engine/eligibility';
 import type { AppKitLike } from './benefits';
-import type { Profile, ProgramRow, RuleRow, FplRow } from '../engine/types';
-
-function num(v: unknown): number | null {
-  if (v == null) return null;
-  const n = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function asStr(v: unknown): string {
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return '';
-}
-
-function rulesFor(all: RuleRow[], programId: number, state: string | null): RuleRow[] {
-  const forProg = all.filter((r) => r.program_id === programId);
-  const stateRules = forProg.filter((r) => r.state === state);
-  return stateRules.length ? stateRules : forProg.filter((r) => r.state == null);
-}
-
-function getFpl(fpl: FplRow[], hh: number): FplRow | null {
-  if (hh <= 8) return fpl.find((f) => f.household_size === hh) || null;
-  const r8 = fpl.find((f) => f.household_size === 8);
-  const r7 = fpl.find((f) => f.household_size === 7);
-  if (!r8) return null;
-  const inc = r7 ? r8.annual_amount - r7.annual_amount : 5380;
-  return { year: r8.year, household_size: hh, annual_amount: r8.annual_amount + (hh - 8) * inc, region: r8.region };
-}
+import type { Profile, ProgramRow, RuleRow, FplRow, BenefitValues } from '../engine/types';
+import { num, asStr, rulesFor, getFpl, buildBenefitValues } from '../utils';
 
 interface ExplainResult {
   short_name: string;
@@ -79,14 +49,23 @@ export function setupExplainRoute(appkit: AppKitLike) {
           annual_amount: Number(f.annual_amount), region: (f.region as string) || 'contiguous',
         }));
 
+        // Benefit dollar values are data, not code: read the synced benefit_values
+        // table and inject into the engine (matching benefits.ts). Falls back to
+        // DEFAULT_BENEFIT_VALUES if the table is absent or the read fails.
+        let benefitValues: BenefitValues = DEFAULT_BENEFIT_VALUES;
+        try {
+          const bvRes = await db.query('SELECT program_short, value_key, value FROM public.benefit_values');
+          if (bvRes.rows.length) benefitValues = buildBenefitValues(bvRes.rows);
+        } catch {
+          // benefit_values not loaded yet — use defaults silently.
+        }
+
         const hh = profile.household_size ?? 1;
         const fplRow = getFpl(fpl, hh);
 
         // Evaluate EVERY program (eligible AND ineligible) so the full trace is visible.
         const results: ExplainResult[] = programs.map((p) => {
-          // The explain trace uses DEFAULT_BENEFIT_VALUES for simplicity; the dollar
-          // values shown match the engine's fallback (and any unloaded benefit_values).
-          const r = evaluateProgram(profile, p, rulesFor(rules, p.id, profile.state ?? null), fplRow, DEFAULT_BENEFIT_VALUES);
+          const r = evaluateProgram(profile, p, rulesFor(rules, p.id, profile.state ?? null), fplRow, benefitValues);
           return {
             short_name: r.program_short_name,
             name: r.program_name,

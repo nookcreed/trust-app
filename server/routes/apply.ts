@@ -17,6 +17,7 @@
 import type { Request } from 'express';
 import type { AppKitLike } from './benefits';
 import { WorkspaceClient } from '@databricks/sdk-experimental';
+import { extractContent, asStr } from '../utils';
 
 const VALID_PROGRAMS = new Set(['SNAP', 'MEDICAID', 'CHIP', 'WIC', 'LIHEAP', 'NSLP', 'TANF', 'SECTION8']);
 const TOP_K = 5;
@@ -40,36 +41,6 @@ interface ApplyHelpResponse {
   answer: string;
   sources: Array<{ title: string; source_name: string; source_url: string }>;
   retrieved: number;
-}
-
-// Robust content extraction — copied from chat.ts logic (do NOT import a non-exported symbol).
-function extractContent(resp: unknown): string {
-  if (typeof resp === 'string') return resp;
-  if (!resp || typeof resp !== 'object') return '';
-  const top = resp as Record<string, unknown>;
-  const data = (top.data && typeof top.data === 'object' ? top.data : top) as Record<string, unknown>;
-  const choices = data.choices as Array<{ message?: { content?: string }; text?: string }> | undefined;
-  if (choices && choices[0]) {
-    const mc = choices[0].message?.content;
-    if (typeof mc === 'string') return mc;
-    if (typeof choices[0].text === 'string') return choices[0].text;
-  }
-  const msgs = data.messages as Array<{ content?: string }> | undefined;
-  if (msgs && msgs.length) {
-    const c = msgs[msgs.length - 1]?.content;
-    if (typeof c === 'string') return c;
-  }
-  if (typeof data.content === 'string') return data.content;
-  const preds = data.predictions;
-  if (typeof preds === 'string') return preds;
-  if (Array.isArray(preds) && typeof preds[0] === 'string') return preds[0];
-  return '';
-}
-
-function asStr(v: unknown): string {
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return '';
 }
 
 // Bound a promise so a slow/hanging Model Serving call can never hang the HTTP

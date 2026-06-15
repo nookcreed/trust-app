@@ -2,6 +2,7 @@
 
 import type { Application, Request } from 'express';
 import type { AppKitLike } from './benefits';
+import { asStr } from '../utils';
 
 interface TableMetadata {
   name: string;
@@ -22,12 +23,6 @@ interface Tool {
 interface CatalogResponse {
   tables: TableMetadata[];
   tools: Tool[];
-}
-
-function asStr(v: unknown): string {
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return '';
 }
 
 async function getRowCount(

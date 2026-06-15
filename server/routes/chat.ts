@@ -5,6 +5,7 @@
 import type { Request } from 'express';
 import { runCheck, type AppKitLike } from './benefits';
 import type { Profile } from '../engine/types';
+import { extractContent } from '../utils';
 
 const SYS = `You are BenefitsIQ, a warm assistant that helps U.S. families find government benefits
 (SNAP, Medicaid, CHIP, WIC, LIHEAP, school meals). From the conversation so far and the user's new
@@ -38,29 +39,6 @@ helpfully and warmly in "reply" using the known profile and the listed programs 
 program covers, processing times, what each program is). Do NOT invent eligibility or claim they qualify
 for anything not in the listed programs — eligibility comes only from the engine. Still keep the profile
 fields unchanged unless the user actually corrects a fact.`;
-
-function extractContent(resp: unknown): string {
-  if (typeof resp === 'string') return resp;
-  if (!resp || typeof resp !== 'object') return '';
-  const top = resp as Record<string, unknown>;
-  const data = (top.data && typeof top.data === 'object' ? top.data : top) as Record<string, unknown>;
-  const choices = data.choices as Array<{ message?: { content?: string }; text?: string }> | undefined;
-  if (choices && choices[0]) {
-    const mc = choices[0].message?.content;
-    if (typeof mc === 'string') return mc;
-    if (typeof choices[0].text === 'string') return choices[0].text;
-  }
-  const msgs = data.messages as Array<{ content?: string }> | undefined;
-  if (msgs && msgs.length) {
-    const c = msgs[msgs.length - 1]?.content;
-    if (typeof c === 'string') return c;
-  }
-  if (typeof data.content === 'string') return data.content;
-  const preds = data.predictions;
-  if (typeof preds === 'string') return preds;
-  if (Array.isArray(preds) && typeof preds[0] === 'string') return preds[0];
-  return '';
-}
 
 function parseJsonLoose(text: string): Record<string, unknown> | null {
   const a = text.indexOf('{');

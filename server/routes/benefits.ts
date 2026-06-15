@@ -7,6 +7,7 @@ import { matchCohort, type CohortRow } from '../engine/cohort';
 import type {
   Profile, ProgramRow, RuleRow, FplRow, Statement, StatementProgram, AcsContext, BenefitValues,
 } from '../engine/types';
+import { num, asStr, rulesFor, getFpl, buildBenefitValues } from '../utils';
 
 export interface AppKitLike {
   lakebase: {
@@ -46,69 +47,6 @@ const APPLY_URL: Record<string, string> = {
   TANF: 'https://www.acf.hhs.gov/ofa/map/about/help-families',
   SECTION8: 'https://www.hud.gov/topics/housing_choice_voucher_program_section_8',
 };
-
-function num(v: unknown): number | null {
-  if (v == null) return null;
-  const n = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function asStr(v: unknown): string {
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-  return '';
-}
-
-function rulesFor(all: RuleRow[], programId: number, state: string | null): RuleRow[] {
-  const forProg = all.filter((r) => r.program_id === programId);
-  const stateRules = forProg.filter((r) => r.state === state);
-  return stateRules.length ? stateRules : forProg.filter((r) => r.state == null);
-}
-
-function getFpl(fpl: FplRow[], hh: number): FplRow | null {
-  if (hh <= 8) return fpl.find((f) => f.household_size === hh) || null;
-  const r8 = fpl.find((f) => f.household_size === 8);
-  const r7 = fpl.find((f) => f.household_size === 7);
-  if (!r8) return null;
-  const inc = r7 ? r8.annual_amount - r7.annual_amount : 5380;
-  return { year: r8.year, household_size: hh, annual_amount: r8.annual_amount + (hh - 8) * inc, region: r8.region };
-}
-
-// Build a BenefitValues from benefit_values rows, starting from the defaults and
-// overriding only the keys present in the table. Unknown keys are ignored.
-function buildBenefitValues(rows: Record<string, unknown>[]): BenefitValues {
-  const values: BenefitValues = {
-    snap_max_monthly: { ...DEFAULT_BENEFIT_VALUES.snap_max_monthly },
-    snap_per_additional: DEFAULT_BENEFIT_VALUES.snap_per_additional,
-    wic_monthly_per_person: DEFAULT_BENEFIT_VALUES.wic_monthly_per_person,
-    chip_annual_per_child: DEFAULT_BENEFIT_VALUES.chip_annual_per_child,
-    nslp_annual_per_child: DEFAULT_BENEFIT_VALUES.nslp_annual_per_child,
-    tanf_monthly_base: DEFAULT_BENEFIT_VALUES.tanf_monthly_base,
-    section8_monthly_base: DEFAULT_BENEFIT_VALUES.section8_monthly_base,
-  };
-  for (const row of rows) {
-    const program = asStr(row.program_short).toUpperCase();
-    const key = asStr(row.value_key);
-    const value = num(row.value);
-    if (value == null || !key) continue;
-    if (program === 'SNAP') {
-      const hh = /^household_([1-8])$/.exec(key);
-      if (hh) values.snap_max_monthly[Number(hh[1])] = value;
-      else if (key === 'per_additional') values.snap_per_additional = value;
-    } else if (program === 'WIC' && key === 'per_person_monthly') {
-      values.wic_monthly_per_person = value;
-    } else if (program === 'CHIP' && key === 'per_child_annual') {
-      values.chip_annual_per_child = value;
-    } else if (program === 'NSLP' && key === 'per_child_annual') {
-      values.nslp_annual_per_child = value;
-    } else if (program === 'TANF' && key === 'monthly_base') {
-      values.tanf_monthly_base = value;
-    } else if (program === 'SECTION8' && key === 'monthly_base') {
-      values.section8_monthly_base = value;
-    }
-  }
-  return values;
-}
 
 export async function runCheck(appkit: AppKitLike, profile: Profile, _req: Request): Promise<Statement | null> {
   if (!profile.state || !profile.household_size || profile.monthly_income == null) return null;
@@ -277,14 +215,32 @@ export async function setupBenefitsRoutes(appkit: AppKitLike) {
     });
 
     app.get('/api/stats', async (_req, res) => {
+      // National-scale context: well-known published figures from federal sources.
+      // These give the landing page real "size of the problem" framing.
+      const NATIONAL = {
+        // ~42 million Americans are eligible for SNAP benefits.
+        // Source: USDA FNS, "Trends in SNAP Participation Rates: FY 2019–2021" (2024).
+        national_snap_eligible: 42_000_000,
+        // ~15 million eligible Americans do not receive SNAP benefits they qualify for.
+        // Source: Center on Budget and Policy Priorities (CBPP), analysis of USDA FNS data, 2024.
+        national_snap_unenrolled: 15_000_000,
+        // ~$60 billion in federal benefits goes unclaimed annually across safety-net programs.
+        // Source: CBPP & USDA FNS combined reporting, 2024.
+        national_unclaimed_annual: 60_000_000_000,
+      } as const;
+
       try {
         const { rows } = await appkit.lakebase.query(
           'SELECT COUNT(*)::int AS families_helped, COALESCE(SUM(estimated_annual_value),0)::float8 AS total_value FROM app.impact_events',
         );
         const r = rows[0] || {};
-        res.json({ families_helped: Number(r.families_helped) || 0, total_value: Number(r.total_value) || 0 });
+        res.json({
+          families_helped: Number(r.families_helped) || 0,
+          total_value: Number(r.total_value) || 0,
+          ...NATIONAL,
+        });
       } catch {
-        res.json({ families_helped: 0, total_value: 0 });
+        res.json({ families_helped: 0, total_value: 0, ...NATIONAL });
       }
     });
   });

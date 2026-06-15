@@ -74,6 +74,9 @@ interface ChatMessage {
 interface Stats {
   families_helped: number;
   total_value: number;
+  national_snap_eligible: number;
+  national_snap_unenrolled: number;
+  national_unclaimed_annual: number;
 }
 
 const QUICK_START_SCENARIOS = [
@@ -106,11 +109,7 @@ export function BenefitsPage() {
   useEffect(() => {
     fetch('/api/stats')
       .then((res) => res.json())
-      .then((data: Stats) => {
-        if (data.families_helped > 0) {
-          setStats(data);
-        }
-      })
+      .then((data: Stats) => setStats(data))
       .catch((err) => console.error('Failed to fetch stats:', err));
   }, []);
 
@@ -184,11 +183,11 @@ export function BenefitsPage() {
           Tell us your situation in plain words. We check it against real federal rules —
           no guessing — and hand you a clear Statement of Benefits.
         </p>
-        {stats && (
+        {stats && stats.families_helped > 0 && (
           <p className="text-sm text-muted-foreground pt-1">
             <span className="font-semibold text-foreground">{stats.families_helped.toLocaleString()}</span>{' '}
-            families helped ·{' '}
-            <span className="font-semibold text-foreground">${(stats.total_value / 1000000).toFixed(1)}M</span>{' '}
+            families screened ·{' '}
+            <span className="font-semibold text-foreground">${(stats.total_value / 1_000_000).toFixed(1)}M</span>{' '}
             in value identified
           </p>
         )}
@@ -200,7 +199,9 @@ export function BenefitsPage() {
           <Card className="card-civic border-primary/15 overflow-hidden reveal" style={{ animationDelay: '120ms' }}>
             <CardContent className="p-6 sm:p-7 flex items-center gap-5 sm:gap-6">
               <div className="shrink-0 text-center">
-                <p className="stmt-total text-5xl text-primary leading-none">$60B</p>
+                <p className="stmt-total text-5xl text-primary leading-none">
+                  ${stats ? `${Math.round(stats.national_unclaimed_annual / 1_000_000_000)}B` : '60B'}
+                </p>
                 <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mt-1.5">
                   every year
                 </p>
@@ -211,8 +212,21 @@ export function BenefitsPage() {
                   in U.S. government benefits goes unclaimed.
                 </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  1 in 5 eligible families never enrolls — not because they don&apos;t qualify, but
-                  because no one tells them what they&apos;ve earned. BenefitsIQ does, in plain language.
+                  An estimated{' '}
+                  <span className="font-medium text-foreground">
+                    {stats ? `${Math.round(stats.national_snap_unenrolled / 1_000_000)}M` : '15M'}
+                  </span>{' '}
+                  eligible Americans don&apos;t receive SNAP benefits they qualify for — not
+                  because they&apos;re ineligible, but because no one told them. BenefitsIQ does,
+                  in plain language.
+                </p>
+                {stats && stats.families_helped > 0 && (
+                  <p className="text-xs text-primary/80 font-medium">
+                    BenefitsIQ has screened {stats.families_helped.toLocaleString()} families so far.
+                  </p>
+                )}
+                <p className="text-[10px] text-muted-foreground/60 leading-snug pt-0.5">
+                  Sources: USDA FNS, Center on Budget and Policy Priorities (CBPP), 2024
                 </p>
               </div>
             </CardContent>
@@ -242,15 +256,15 @@ export function BenefitsPage() {
       {/* Chat messages */}
       {messages.length > 0 && (
         <Card className="card-civic">
-          <CardContent className="p-4 space-y-4 max-h-96 overflow-y-auto">
+          <CardContent className="p-4 space-y-4 max-h-96 overflow-y-auto" aria-live="polite" aria-label="Conversation">
             {messages.map((msg) => (
               <div
                 key={msg.id}
                 className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.role === 'assistant' && (
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <Bot className="h-4 w-4" />
+                  <Avatar className="h-8 w-8 shrink-0" aria-label="Assistant">
+                    <Bot className="h-4 w-4" aria-hidden="true" />
                   </Avatar>
                 )}
                 <div
@@ -263,8 +277,8 @@ export function BenefitsPage() {
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                 </div>
                 {msg.role === 'user' && (
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <User className="h-4 w-4" />
+                  <Avatar className="h-8 w-8 shrink-0" aria-label="You">
+                    <User className="h-4 w-4" aria-hidden="true" />
                   </Avatar>
                 )}
               </div>
@@ -297,6 +311,7 @@ export function BenefitsPage() {
           <div className="flex gap-2">
             <Textarea
               placeholder="Describe your situation... (e.g., 'I just lost my job and have 2 kids')"
+              aria-label="Describe your situation"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
