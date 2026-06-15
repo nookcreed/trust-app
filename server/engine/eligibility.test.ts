@@ -37,7 +37,7 @@ describe('SNAP — gross income test', () => {
     expect(r.eligible).toBe(false);
     expect(r.confidence).toBe('unlikely');
     expect(r.estimated_annual_value).toBeNull();
-    expect(r.reason).toContain('vs. limit');
+    expect(r.reason).toContain('exceeds the');
   });
 
   it('is borderline when income is between 90% and 100% of the limit', () => {
@@ -109,7 +109,7 @@ describe('FPL-percentage rule (Medicaid-style)', () => {
     const p: Profile = { state: 'GA', household_size: 3, monthly_income: 2000 };
     const r = evaluateProgram(p, prog('MEDICAID'), [rule({ max_pct_fpl: 1.38 })], fpl(3, 25820));
     expect(r.eligible).toBe(true);
-    expect(r.reason).toContain('% FPL');
+    expect(r.reason).toContain('federal poverty level');
   });
 
   it('is ineligible in a non-expansion state (max_pct_fpl = 0)', () => {

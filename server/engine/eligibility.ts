@@ -99,9 +99,11 @@ function applyIncomeRule(
     const pct = income / rule.max_gross_monthly;
     eligible = pct <= 1.0;
     confidence = pct <= 0.9 ? 'likely' : 'borderline';
-    reason = `Monthly gross income $${Math.round(income).toLocaleString()} vs. limit $${Math.round(
-      rule.max_gross_monthly,
-    ).toLocaleString()} (${Math.round(pct * 100)}% of limit).`;
+    const incFmt = `$${Math.round(income).toLocaleString()}`;
+    const limFmt = `$${Math.round(rule.max_gross_monthly).toLocaleString()}`;
+    reason = eligible
+      ? `Your household income of ${incFmt}/month is under the ${limFmt}/month limit for this program.`
+      : `Your household income of ${incFmt}/month exceeds the ${limFmt}/month limit for this program.`;
   } else if (rule.max_pct_fpl != null && fpl) {
     if (rule.max_pct_fpl === 0) {
       return {
@@ -114,9 +116,12 @@ function applyIncomeRule(
     const actualPct = income > 0 ? income / monthlyFpl : 0;
     eligible = actualPct <= rule.max_pct_fpl;
     confidence = actualPct / rule.max_pct_fpl <= 0.9 ? 'likely' : 'borderline';
-    reason = `Income is ${Math.round(actualPct * 100)}% FPL; limit is ${Math.round(
-      rule.max_pct_fpl * 100,
-    )}% FPL.`;
+    const incFmt = `$${Math.round(income).toLocaleString()}`;
+    const limFmt = `$${Math.round(monthlyFpl * rule.max_pct_fpl).toLocaleString()}`;
+    const limPctFmt = `${Math.round(rule.max_pct_fpl * 100)}%`;
+    reason = eligible
+      ? `Your household income of ${incFmt}/month is under the ${limFmt}/month limit (${limPctFmt} of the federal poverty level).`
+      : `Your household income of ${incFmt}/month exceeds the ${limFmt}/month limit (${limPctFmt} of the federal poverty level).`;
   } else {
     return {
       eligible: false,
