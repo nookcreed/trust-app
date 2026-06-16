@@ -14,7 +14,7 @@ Return ONLY a JSON object:
 {
   "intent": "search" | "filter" | "question" | "compare",
   "search_query": "string for SQL ILIKE or null",
-  "filters": { "state": "string or null", "type": "string or null", "min_score": number or null },
+  "filters": { "state": "string or null", "type": "string or null" },
   "facility_id": "if user references a specific facility",
   "reply": "brief helpful response to the user"
 }
@@ -85,7 +85,7 @@ function parseJsonLoose(text: string): Record<string, unknown> | null {
 interface ChatIntent {
   intent: 'search' | 'filter' | 'question' | 'compare';
   search_query: string | null;
-  filters: { state: string | null; type: string | null; min_score: number | null };
+  filters: { state: string | null; type: string | null };
   facility_id: string | null;
   reply: string;
 }
@@ -103,7 +103,6 @@ function parseIntent(parsed: Record<string, unknown>): ChatIntent {
     filters: {
       state: typeof filters.state === 'string' ? filters.state : null,
       type: typeof filters.type === 'string' ? filters.type : null,
-      min_score: num(filters.min_score),
     },
     facility_id: typeof parsed.facility_id === 'string' ? parsed.facility_id : null,
     reply: typeof parsed.reply === 'string' ? parsed.reply : '',
@@ -147,13 +146,13 @@ export function setupChatRoute(appkit: AppKitLike) {
           const parsed = parseJsonLoose(extractContent(resp));
           intent = parsed
             ? parseIntent(parsed)
-            : { intent: 'question', search_query: null, filters: { state: null, type: null, min_score: null }, facility_id: contextFacilityId, reply: 'I can help you explore facility data. What would you like to find?' };
+            : { intent: 'question', search_query: null, filters: { state: null, type: null }, facility_id: contextFacilityId, reply: 'I can help you explore facility data. What would you like to find?' };
         } catch (e) {
           console.warn('[chat] LLM call failed:', (e as Error).message);
           intent = {
             intent: 'question',
             search_query: null,
-            filters: { state: null, type: null, min_score: null },
+            filters: { state: null, type: null },
             facility_id: contextFacilityId,
             reply: 'I can help you explore facility data. What would you like to find?',
           };
