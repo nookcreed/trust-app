@@ -311,18 +311,18 @@ export function scoreStaffing(f: ParsedFacility): DimensionScore {
     evidence.push({
       claim: `${doctors} doctors cover ${specialties.length} specialties`,
       finding: `Ratio: 1 doctor per ${(specialties.length / doctors).toFixed(1)} specialties`,
-      supported: ratio <= 4,
+      supported: ratio <= 3,
       source: 'num_doctors + specialties fields',
     });
 
-    if (ratio > 7) {
+    if (ratio >= 5) {
       score -= 50;
       flags.push({
         severity: 'critical',
         message: `${doctors} doctor(s) covering ${specialties.length} specialties (1:${ratio.toFixed(0)} ratio is not credible)`,
         dimension: key,
       });
-    } else if (ratio > 4) {
+    } else if (ratio > 3) {
       score -= 25;
       flags.push({
         severity: 'warning',

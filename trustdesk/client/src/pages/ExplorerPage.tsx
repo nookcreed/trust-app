@@ -12,7 +12,6 @@ import {
   Search,
   ShieldCheck,
   Activity,
-  MapPin,
   Building2,
   AlertTriangle,
   Send,
@@ -20,7 +19,6 @@ import {
   ArrowRight,
   Eye,
   Users,
-  Globe,
 } from 'lucide-react';
 import { FacilityCard } from '../components/FacilityCard';
 import type { Facility, TrustProfile } from '../lib/types';
@@ -36,10 +34,9 @@ interface StatsData {
 
 interface FindingsData {
   staffing_anomalies: number;
-  coordinates_outside_india: number;
-  specialties_without_equipment: number;
-  website_percentage: number;
-  severely_incomplete: number;
+  zero_doctors: number;
+  zero_beds: number;
+  no_accreditation_pct: number;
   total_facilities: number;
 }
 
@@ -50,7 +47,7 @@ interface ChatMessage {
 
 const STAR_FACILITIES = [
   {
-    label: 'Shaurya Hospital — 2 doctors, 19 specialties',
+    label: 'Shaurya Hospital — 2 doctors, 14 specialties',
     href: '/facility/fadba1a4-dae8-4917-81f3-1dffbc9ee071',
     icon: AlertTriangle,
   },
@@ -90,8 +87,16 @@ export function ExplorerPage() {
       .then((data) => setStats(data.stats ?? data))
       .catch(() => {});
     fetch('/api/findings')
-      .then((r) => r.json())
-      .then((data) => setFindings(data.findings ?? data))
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        const f = data.findings ?? data;
+        if (f && typeof f.staffing_anomalies === 'number') {
+          setFindings(f);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -247,23 +252,22 @@ export function ExplorerPage() {
                   tint="red"
                 />
                 <FindingCard
-                  value={findings.coordinates_outside_india.toLocaleString()}
-                  description="facilities have coordinates outside India"
-                  icon={MapPin}
+                  value={findings.zero_doctors.toLocaleString()}
+                  description="facilities report zero doctors"
+                  icon={AlertTriangle}
                   tint="red"
                 />
                 <FindingCard
-                  value={`${findings.total_facilities > 0 ? Math.round((findings.specialties_without_equipment / findings.total_facilities) * 100) : 0}%`}
-                  description="of facilities report no equipment data"
-                  icon={AlertTriangle}
+                  value={findings.zero_beds.toLocaleString()}
+                  description="facilities report zero beds"
+                  icon={Building2}
                   tint="amber"
                 />
                 <FindingCard
-                  value={`${findings.website_percentage}%`}
-                  description="of facilities have a website"
-                  icon={Globe}
-                  tint="blue"
-                  prefix="Only"
+                  value={`${findings.no_accreditation_pct}%`}
+                  description="of facilities have no accreditation"
+                  icon={ShieldCheck}
+                  tint="amber"
                 />
               </div>
             )}

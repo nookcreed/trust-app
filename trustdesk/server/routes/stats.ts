@@ -82,10 +82,9 @@ export function setupStatsRoute(appkit: AppKitLike) {
         const [
           totalResult,
           staffingResult,
-          coordinatesResult,
-          equipmentGapResult,
-          websiteResult,
-          incompleteResult,
+          zeroDoctorsResult,
+          zeroBedsResult,
+          noAccreditationResult,
         ] = await Promise.all([
           db.query('SELECT COUNT(*)::int AS total FROM facilities'),
 
@@ -98,51 +97,47 @@ export function setupStatsRoute(appkit: AppKitLike) {
                   / NULLIF(NULLIF("numberDoctors", '')::int, 0) > 5
           `),
 
-          // Coordinates outside India bounds
+          // Facilities reporting zero or no doctors
           db.query(`
             SELECT COUNT(*)::int AS count FROM facilities
-            WHERE latitude IS NOT NULL AND longitude IS NOT NULL
-              AND (
-                latitude::float NOT BETWEEN 6.5 AND 37.5
-                OR longitude::float NOT BETWEEN 68 AND 97.5
+            WHERE "numberDoctors" IS NULL
+              OR "numberDoctors" = ''
+              OR "numberDoctors" = '0'
+          `),
+
+          // Facilities reporting zero or no beds
+          db.query(`
+            SELECT COUNT(*)::int AS count FROM facilities
+            WHERE capacity IS NULL
+              OR capacity = ''
+              OR capacity = '0'
+          `),
+
+          // Facilities with no accreditation info (description field has no NABH/JCI/ISO mention)
+          db.query(`
+            SELECT COUNT(*)::int AS count FROM facilities
+            WHERE description IS NULL
+              OR (
+                description NOT ILIKE '%nabh%'
+                AND description NOT ILIKE '%jci%'
+                AND description NOT ILIKE '%iso%'
+                AND description NOT ILIKE '%accredit%'
               )
-          `),
-
-          // Specialties listed but no equipment
-          db.query(`
-            SELECT COUNT(*)::int AS count FROM facilities
-            WHERE specialties IS NOT NULL AND specialties != ''
-              AND (equipment IS NULL OR equipment = '')
-          `),
-
-          // Facilities with a website
-          db.query(`
-            SELECT COUNT(*)::int AS count FROM facilities
-            WHERE "officialWebsite" IS NOT NULL AND "officialWebsite" != ''
-          `),
-
-          // Severely incomplete: missing doctors AND capacity AND specialties
-          db.query(`
-            SELECT COUNT(*)::int AS count FROM facilities
-            WHERE ("numberDoctors" IS NULL OR "numberDoctors" = '')
-              AND (capacity IS NULL OR capacity = '')
-              AND (specialties IS NULL OR specialties = '')
           `),
         ]);
 
         const totalFacilities = num(totalResult.rows[0]?.total) ?? 0;
-        const websiteCount = num(websiteResult.rows[0]?.count) ?? 0;
-        const websitePercentage = totalFacilities > 0
-          ? Math.round((websiteCount / totalFacilities) * 100)
+        const noAccreditation = num(noAccreditationResult.rows[0]?.count) ?? 0;
+        const noAccreditationPct = totalFacilities > 0
+          ? Math.round((noAccreditation / totalFacilities) * 100)
           : 0;
 
         res.json({
           findings: {
             staffing_anomalies: num(staffingResult.rows[0]?.count) ?? 0,
-            coordinates_outside_india: num(coordinatesResult.rows[0]?.count) ?? 0,
-            specialties_without_equipment: num(equipmentGapResult.rows[0]?.count) ?? 0,
-            website_percentage: websitePercentage,
-            severely_incomplete: num(incompleteResult.rows[0]?.count) ?? 0,
+            zero_doctors: num(zeroDoctorsResult.rows[0]?.count) ?? 0,
+            zero_beds: num(zeroBedsResult.rows[0]?.count) ?? 0,
+            no_accreditation_pct: noAccreditationPct,
             total_facilities: totalFacilities,
           },
         });

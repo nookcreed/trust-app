@@ -42,7 +42,7 @@ interface StarFacility {
 }
 
 const STAR_FACILITIES: StarFacility[] = [
-  { id: 'fadba1a4-dae8-4917-81f3-1dffbc9ee071', name: 'Shaurya Hospital', why: '2 doctors, 19 specialties' },
+  { id: 'fadba1a4-dae8-4917-81f3-1dffbc9ee071', name: 'Shaurya Hospital', why: '2 doctors, 14 specialties' },
   { id: '58d49f6f-42fa-4172-9e3b-8fdeb5d056cf', name: 'Dr Jindal ENT & Superspeciality', why: 'Only a stethoscope' },
   { id: '2819fe14-ac78-46f6-93de-85e65a1634ac', name: 'Apollo Adlux Hospital', why: 'Well-equipped, high trust' },
 ];
@@ -54,7 +54,7 @@ const DIMENSIONS_TABLE = [
     weight: 0.25,
     icon: Scale,
     description: 'Do the facility\'s claimed specialties match its staffing and equipment?',
-    example: '19 specialties but only 2 doctors',
+    example: '14 specialties but only 2 doctors',
   },
   {
     key: 'staffing',
@@ -522,7 +522,7 @@ export function HowItWorksPage() {
               <div className="rounded-lg bg-white border p-4 space-y-3">
                 <p className="text-sm text-foreground">
                   <span className="font-bold text-red-600">Score: 34/100.</span>{' '}
-                  2 doctors covering 19 specialties — medically implausible.
+                  2 doctors covering 14 specialties — medically implausible.
                   Coordinates place facility in the North Atlantic Ocean, not Kerala.
                   Claims NABH accreditation but not found in registry.
                   Website returns HTTP 503.

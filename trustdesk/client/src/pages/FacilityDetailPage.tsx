@@ -114,9 +114,19 @@ export function FacilityDetailPage() {
     );
   }
 
-  const specialtiesList = facility.specialties
-    ? facility.specialties.split(',').map((s) => s.trim()).filter(Boolean)
-    : [];
+  const specialtiesList = (() => {
+    const raw: string[] = (facility as Record<string, unknown>).specialties_list as string[]
+      ?? (facility.specialties
+        ? facility.specialties.split(',').map((s) => s.trim()).filter(Boolean)
+        : []);
+    const seen = new Set<string>();
+    return raw.filter((s) => {
+      const lower = s.toLowerCase();
+      if (seen.has(lower)) return false;
+      seen.add(lower);
+      return true;
+    });
+  })();
 
   const sortedFlags: Flag[] = trustProfile
     ? [...(trustProfile.flags ?? [])].sort((a, b) => {
